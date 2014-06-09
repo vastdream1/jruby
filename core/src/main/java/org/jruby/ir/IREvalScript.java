@@ -11,6 +11,7 @@ import org.jruby.ir.operands.Variable;
 import org.jruby.ir.interpreter.Interpreter;
 import org.jruby.ir.runtime.IRRuntimeHelpers;
 import org.jruby.parser.StaticScope;
+import org.jruby.parser.IRStaticScope;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.DynamicScope;
 import org.jruby.runtime.ThreadContext;
@@ -43,6 +44,15 @@ public class IREvalScript extends IRClosure {
         this.nearestNonEvalScope = s;
         this.nearestNonEvalScopeDepth = n;
         this.nearestNonEvalScope.initEvalScopeVariableAllocator(false);
+
+        if (!getManager().isDryRun() && staticScope != null) {
+            // SSS FIXME: This is awkward!
+            if (isModuleEval) {
+                staticScope.setScopeType(this.getScopeType());
+            } else {
+                staticScope.setScopeType(this.nearestNonEvalScope.getScopeType());
+            }
+        }
     }
 
     @Override
@@ -55,13 +65,13 @@ public class IREvalScript extends IRClosure {
         return IRScopeType.EVAL_SCRIPT;
     }
 
-    public boolean isModuleEval() {
-        return isModuleEval;
-    }
-
     @Override
     public Operand[] getBlockArgs() {
         return new Operand[0];
+    }
+
+    public boolean isModuleEval() {
+        return isModuleEval;
     }
 
     /* Record a begin block -- not all scope implementations can handle them */

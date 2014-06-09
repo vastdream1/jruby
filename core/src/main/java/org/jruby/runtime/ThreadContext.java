@@ -47,6 +47,7 @@ import org.jruby.ast.executable.RuntimeCache;
 import org.jruby.exceptions.JumpException.ReturnJump;
 import org.jruby.ext.fiber.ThreadFiber;
 import org.jruby.internal.runtime.methods.DynamicMethod;
+import org.jruby.ir.IRScopeType;
 import org.jruby.lexer.yacc.ISourcePosition;
 import org.jruby.parser.IRStaticScope;
 import org.jruby.parser.StaticScope;
@@ -597,6 +598,39 @@ public final class ThreadContext {
         return false;
     }
 
+    public RubyModule findNearestMethodContainer(DynamicScope currDynScope, IRubyObject self) {
+        DynamicScope[] stack = scopeStack;
+        IRScopeType hostType = currDynScope.getStaticScope().getScopeType();
+        for (int i = scopeIndex; i >= 0; i--) {
+            DynamicScope ds   = stack[i];
+            StaticScope  s    = ds.getStaticScope();
+            IRScopeType  type = s.getScopeType();
+            if (ds.inModuleEval()) {
+                return (RubyModule)self;
+            } else if (ds.inInstanceEval()) {
+                return self.getSingletonClass();
+            } else if (type == null) {
+                continue;
+            } else {
+                if (hostType.isMethod()) {
+                    return self.getSingletonClass();
+                } else {
+                    switch (type) {
+                        case SCRIPT_BODY:
+                            return self.getType();
+
+                        case MODULE_BODY:
+                        case CLASS_BODY:
+                        case METACLASS_BODY:
+                            return (RubyModule)self;
+                    }
+                }
+            }
+        }
+
+        throw new RuntimeException("Should never get here!");
+    }
+
     public String getFrameName() {
         return getCurrentFrame().getName();
     }
@@ -683,27 +717,29 @@ public final class ThreadContext {
         // FIXME: this seems like a good assertion, but it breaks compiled code and the code seems
         // to run without it...
         //assert currentModule != null : "Can't push null RubyClass";
-        int index = ++parentIndex;
-        RubyModule[] stack = parentStack;
-        stack[index] = currentModule;
-        if (index + 1 == stack.length) {
-            expandParentStack();
-        }
+        // int index = ++parentIndex;
+        // RubyModule[] stack = parentStack;
+        // stack[index] = currentModule;
+        // if (index + 1 == stack.length) {
+        //     expandParentStack();
+        // }
     }
     
     public RubyModule popRubyClass() {
-        int index = parentIndex;
-        RubyModule[] stack = parentStack;
-        RubyModule ret = stack[index];
-        stack[index] = null;
-        parentIndex = index - 1;
-        return ret;
+        // int index = parentIndex;
+        // RubyModule[] stack = parentStack;
+        // RubyModule ret = stack[index];
+        // stack[index] = null;
+        // parentIndex = index - 1;
+        // return ret;
+        return null;
     }
     
     public RubyModule getRubyClass() {
-        assert parentIndex != -1 : "Trying to getService RubyClass from empty stack";
-        RubyModule parentModule = parentStack[parentIndex];
-        return parentModule.getNonIncludedClass();
+        // assert parentIndex != -1 : "Trying to get RubyClass from empty stack";
+        // RubyModule parentModule = parentStack[parentIndex];
+        // return parentModule.getNonIncludedClass();
+        return null;
     }
 
     public RubyModule getPreviousRubyClass() {

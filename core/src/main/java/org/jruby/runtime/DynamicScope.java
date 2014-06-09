@@ -45,6 +45,12 @@ public abstract class DynamicScope {
     // Captured dynamic scopes
     protected final DynamicScope parent;
 
+    // Are we in a instance/class/module eval context?
+    // 0 => neither
+    // 1 => instance-eval
+    // 2 => module-eval
+    private int evalType;
+
     // A place to store that special hiding space that bindings need to implement things like:
     // eval("a = 1", binding); eval("p a").  All binding instances must get access to this
     // hidden shared scope.  We store it here.  This will be null if no binding has yet
@@ -380,5 +386,26 @@ public abstract class DynamicScope {
         }
 
         return buf.toString();
+    }
+
+    // HACK
+    public boolean inInstanceEval() {
+        return evalType == 1;
+    }
+
+    public boolean inModuleEval() {
+        return evalType == 2;
+    }
+
+    public void setInInstanceEval() {
+        evalType = 1;
+    }
+
+    public void setInModuleEval() {
+        evalType = 2;
+    }
+
+    public void clearEvalFlag() {
+        evalType = 0;
     }
 }

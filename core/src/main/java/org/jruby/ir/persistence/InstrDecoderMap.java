@@ -128,7 +128,7 @@ class InstrDecoderMap implements IRPersistenceValues {
 
     public Instr decodeInner(Operation operation) {
         switch(operation) {
-            case ALIAS: return new AliasInstr(d.decodeVariable(), d.decodeOperand(), d.decodeOperand());
+            case ALIAS: return new AliasInstr(d.decodeOperand(), d.decodeOperand(), null ); // SSS FIXME
             case ATTR_ASSIGN: return decodeAttrAssignInstr();
             case BEQ: return BEQInstr.create(d.decodeOperand(), d.decodeOperand(), (Label) d.decodeOperand());
             case BINDING_LOAD: return new LoadLocalVarInstr(d.decodeScope(), (TemporaryLocalVariable) d.decodeOperand(), (LocalVariable) d.decodeOperand());
@@ -148,7 +148,7 @@ class InstrDecoderMap implements IRPersistenceValues {
             case COPY: return decodeCopy();
             case DEF_CLASS: return new DefineClassInstr((d.decodeVariable()), (IRClassBody) d.decodeScope(), d.decodeOperand(), d.decodeOperand());
             case DEF_CLASS_METH: return new DefineClassMethodInstr(d.decodeOperand(), (IRMethod) d.decodeScope());
-            case DEF_INST_METH: return new DefineInstanceMethodInstr(d.decodeOperand(), (IRMethod) d.decodeScope());
+            case DEF_INST_METH: return new DefineInstanceMethodInstr((IRMethod) d.decodeScope(), null); // SSS FIXME
             case DEF_META_CLASS: return new DefineMetaClassInstr(d.decodeVariable(), d.decodeOperand(), (IRModuleBody) d.decodeScope());
             case DEF_MODULE: return new DefineModuleInstr(d.decodeVariable(), (IRModuleBody) d.decodeScope(), d.decodeOperand());
             case EQQ: return new EQQInstr(d.decodeVariable(), d.decodeOperand(), d.decodeOperand());
@@ -209,7 +209,7 @@ class InstrDecoderMap implements IRPersistenceValues {
             case THREAD_POLL: return new ThreadPollInstr(d.decodeBoolean());
             case THROW: return new ThrowExceptionInstr(d.decodeOperand());
             case TO_ARY: return new ToAryInstr(d.decodeVariable(), d.decodeOperand());
-            case UNDEF_METHOD: return new UndefMethodInstr(d.decodeVariable(), d.decodeOperand());
+            case UNDEF_METHOD: return new UndefMethodInstr(d.decodeVariable(), d.decodeOperand(), null); // SSS FIXME
             case YIELD: return new YieldInstr(d.decodeVariable(), d.decodeOperand(), d.decodeOperand(), d.decodeBoolean());
             case ZSUPER: return decodeZSuperInstr();
         }

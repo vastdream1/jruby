@@ -733,7 +733,7 @@ public class IRBuilder {
     public Operand buildAlias(final AliasNode alias, IRScope s) {
         Operand newName = build(alias.getNewName(), s);
         Operand oldName = build(alias.getOldName(), s);
-        addInstr(s, new AliasInstr(s.getSelf(), newName, oldName));
+        addInstr(s, new AliasInstr(newName, oldName, getStaticMethodContainerType(s)));
 
         return manager.getNil();
     }
@@ -1660,9 +1660,26 @@ public class IRBuilder {
         return method;
     }
 
+    private IRScopeType getStaticMethodContainerType(IRScope s) {
+        // Walk lexical scope stack till
+        // * you hit a IRClosure (blocks static resolution)
+        // * you hit a module-eval (blocks static resolution)
+        // * you hit a scope that can be scope targets (IRScriptBody, IRModuleBody).
+        while (!(s instanceof IRScriptBody) && !(s instanceof IRModuleBody)) {
+            if (s.getScopeType() == IRScopeType.CLOSURE ||
+                (s instanceof IREvalScript && (((IREvalScript)s).isModuleEval())))
+            {
+                break;
+            }
+            s = s.getLexicalParent();
+        }
+
+        return s.getScopeType();
+    }
+
     public Operand buildDefn(MethodDefNode node, IRScope s) { // Instance method
         IRMethod method = defineNewMethod(node, s, true);
-        addInstr(s, new DefineInstanceMethodInstr(new StringLiteral("--unused--"), method));
+        addInstr(s, new DefineInstanceMethodInstr(method, getStaticMethodContainerType(s)));
         return new Symbol(method.getName());
     }
 
@@ -3316,8 +3333,7 @@ public class IRBuilder {
 
     public Operand buildUndef(Node node, IRScope s) {
         Operand methName = build(((UndefNode) node).getName(), s);
-
-        return addResultInstr(s, new UndefMethodInstr(s.createTemporaryVariable(), methName));
+        return addResultInstr(s, new UndefMethodInstr(s.createTemporaryVariable(), methName, getStaticMethodContainerType(s)));
     }
 
     private Operand buildConditionalLoop(IRScope s, Node conditionNode,

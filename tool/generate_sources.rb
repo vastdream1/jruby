@@ -1,6 +1,6 @@
 require 'erb'
 
-SRC_DIR = "src"
+SRC_DIR = "core/src/main/java"
 MAX_ARITY = 10
 
 TEMPLATES = %w[

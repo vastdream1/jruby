@@ -2265,29 +2265,59 @@ public class RubyModule extends RubyObject {
 
     @JRubyMethod(name = {"module_eval", "class_eval"})
     public IRubyObject module_eval(ThreadContext context, Block block) {
-        return specificEval(context, this, block);
+        try {
+            context.getCurrentScope().setInModuleEval();
+            return specificEval(context, this, block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
     @JRubyMethod(name = {"module_eval", "class_eval"})
     public IRubyObject module_eval(ThreadContext context, IRubyObject arg0, Block block) {
-        return specificEval(context, this, arg0, block);
+        try {
+            context.getCurrentScope().setInModuleEval();
+            return specificEval(context, this, arg0, block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
     @JRubyMethod(name = {"module_eval", "class_eval"})
     public IRubyObject module_eval(ThreadContext context, IRubyObject arg0, IRubyObject arg1, Block block) {
-        return specificEval(context, this, arg0, arg1, block);
+        try {
+            context.getCurrentScope().setInModuleEval();
+            return specificEval(context, this, arg0, arg1, block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
     @JRubyMethod(name = {"module_eval", "class_eval"})
     public IRubyObject module_eval(ThreadContext context, IRubyObject arg0, IRubyObject arg1, IRubyObject arg2, Block block) {
-        return specificEval(context, this, arg0, arg1, arg2, block);
+        try {
+            context.getCurrentScope().setInModuleEval();
+            return specificEval(context, this, arg0, arg1, arg2, block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
     @Deprecated
     public IRubyObject module_eval(ThreadContext context, IRubyObject[] args, Block block) {
-        return specificEval(context, this, args, block);
+        try {
+            context.getCurrentScope().setInModuleEval();
+            return specificEval(context, this, args, block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
 
     @JRubyMethod(name = {"module_exec", "class_exec"})
     public IRubyObject module_exec(ThreadContext context, Block block) {
         if (block.isGiven()) {
-            return yieldUnder(context, this, IRubyObject.NULL_ARRAY, block);
+            try {
+                context.getCurrentScope().setInModuleEval();
+                return yieldUnder(context, this, IRubyObject.NULL_ARRAY, block);
+            } finally {
+                context.getCurrentScope().clearEvalFlag();
+            }
         } else {
             throw context.runtime.newLocalJumpErrorNoBlock();
         }
@@ -2296,7 +2326,12 @@ public class RubyModule extends RubyObject {
     @JRubyMethod(name = {"module_exec", "class_exec"}, rest = true)
     public IRubyObject module_exec(ThreadContext context, IRubyObject[] args, Block block) {
         if (block.isGiven()) {
-            return yieldUnder(context, this, args, block);
+            try {
+                context.getCurrentScope().setInModuleEval();
+                return yieldUnder(context, this, args, block);
+            } finally {
+                context.getCurrentScope().clearEvalFlag();
+            }
         } else {
             throw context.runtime.newLocalJumpErrorNoBlock();
         }

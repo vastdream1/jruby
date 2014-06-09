@@ -199,9 +199,9 @@ public class InstrEncoderMap {
     }
 
     private void encodeAliasInstr(AliasInstr instr) {
-        e.encode(instr.getReceiver());
         e.encode(instr.getNewName());
         e.encode(instr.getOldName());
+        // SSS FIXME: Missing targetScopeType
     }
 
     private void encodeAttrAssignInstr(AttrAssignInstr instr) {
@@ -300,8 +300,8 @@ public class InstrEncoderMap {
     }
 
     private void encodeDefineInstanceMethodInstr(DefineInstanceMethodInstr instr) {
-        e.encode(instr.getContainer());
         e.encode(instr.getMethod());
+        // SSS FIXME: Missing targetScopeType
     }
 
     private void encodeDefineMetaClassInstr(DefineMetaClassInstr instr) {
@@ -562,6 +562,7 @@ public class InstrEncoderMap {
 
     private void encodeUndefMethodInstr(UndefMethodInstr instr) {
         e.encode(instr.getMethodName());
+        // SSS FIXME: Missing targetScopeType
     }
 
     private void encodeYieldInstr(YieldInstr instr) {

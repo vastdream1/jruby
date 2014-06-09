@@ -1571,19 +1571,39 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
     
     @JRubyMethod(name = "instance_eval")
     public IRubyObject instance_eval19(ThreadContext context, Block block) {
-        return specificEval(context, getInstanceEvalClass(), block);
+        try {
+            context.getCurrentScope().setInInstanceEval();
+            return specificEval(context, getInstanceEvalClass(), block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
     @JRubyMethod(name = "instance_eval")
     public IRubyObject instance_eval19(ThreadContext context, IRubyObject arg0, Block block) {
-        return specificEval(context, getInstanceEvalClass(), arg0, block);
+        try {
+            context.getCurrentScope().setInInstanceEval();
+            return specificEval(context, getInstanceEvalClass(), arg0, block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
     @JRubyMethod(name = "instance_eval")
     public IRubyObject instance_eval19(ThreadContext context, IRubyObject arg0, IRubyObject arg1, Block block) {
-        return specificEval(context, getInstanceEvalClass(), arg0, arg1, block);
+        try {
+            context.getCurrentScope().setInInstanceEval();
+            return specificEval(context, getInstanceEvalClass(), arg0, arg1, block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
     @JRubyMethod(name = "instance_eval")
     public IRubyObject instance_eval19(ThreadContext context, IRubyObject arg0, IRubyObject arg1, IRubyObject arg2, Block block) {
-        return specificEval(context, getInstanceEvalClass(), arg0, arg1, arg2, block);
+        try {
+            context.getCurrentScope().setInInstanceEval();
+            return specificEval(context, getInstanceEvalClass(), arg0, arg1, arg2, block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
 
     @JRubyMethod(name = "instance_exec", optional = 3, rest = true)
@@ -1600,7 +1620,12 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
             klazz = getSingletonClass();
         }
 
-        return yieldUnder(context, klazz, args, block);
+        try {
+            context.getCurrentScope().setInInstanceEval();
+            return yieldUnder(context, klazz, args, block);
+        } finally {
+            context.getCurrentScope().clearEvalFlag();
+        }
     }
 
     /**
