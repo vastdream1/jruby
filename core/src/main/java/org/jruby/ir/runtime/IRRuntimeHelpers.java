@@ -612,12 +612,12 @@ public class IRRuntimeHelpers {
         return RubyRegexp.nth_match(matchNumber, context.getBackRef());
     }
 
-    public static void defineAlias(ThreadContext context, IRubyObject self, DynamicScope currDynScope, String newNameString, String oldNameString, IRScopeType targetScopeType) {
+    public static void defineAlias(ThreadContext context, IRubyObject self, DynamicScope currDynScope, String newNameString, String oldNameString, IRScopeType hostScopeType, IRScopeType targetScopeType) {
         if (self == null || self instanceof RubyFixnum || self instanceof RubySymbol) {
             throw context.runtime.newTypeError("no class to make alias");
         }
 
-        RubyModule module = findInstanceMethodContainer(context, currDynScope, self, targetScopeType);
+        RubyModule module = findInstanceMethodContainer(context, currDynScope, self, hostScopeType, targetScopeType);
         module.defineAlias(newNameString, oldNameString);
         module.callMethod(context, "method_added", context.runtime.newSymbol(newNameString));
     }
@@ -664,15 +664,10 @@ public class IRRuntimeHelpers {
         }
     }
 
-    public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self, IRScopeType staticTargetScopeType) {
+    public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self, IRScopeType hostScopeType, IRScopeType staticTargetScopeType) {
         if (staticTargetScopeType == IRScopeType.CLOSURE || staticTargetScopeType == IRScopeType.EVAL_SCRIPT) {
             return context.findNearestMethodContainer(currDynScope, self);
         } else {
-            IRScopeType hostScopeType = currDynScope.getStaticScope().getScopeType();
-            if (hostScopeType == IRScopeType.EVAL_SCRIPT) {
-                // SSS FIXME: We have to walk up the lexical scope hierarchy
-                // to unwrap the non-module evals. So, we may need an explicit scope-type field.
-            }
             return getTargetClass(hostScopeType, staticTargetScopeType, self);
         }
     }

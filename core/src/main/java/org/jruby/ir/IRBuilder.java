@@ -733,7 +733,7 @@ public class IRBuilder {
     public Operand buildAlias(final AliasNode alias, IRScope s) {
         Operand newName = build(alias.getNewName(), s);
         Operand oldName = build(alias.getOldName(), s);
-        addInstr(s, new AliasInstr(newName, oldName, getStaticMethodContainerType(s)));
+        addInstr(s, new AliasInstr(newName, oldName, getHostScopeType(s), getStaticMethodContainerType(s)));
 
         return manager.getNil();
     }
@@ -1677,9 +1677,18 @@ public class IRBuilder {
         return s.getScopeType();
     }
 
+    private IRScopeType getHostScopeType(IRScope s) {
+        // Go past eval-scripts
+        while (s instanceof IREvalScript) {
+            s = s.getLexicalParent();
+        }
+
+        return s.getScopeType();
+    }
+
     public Operand buildDefn(MethodDefNode node, IRScope s) { // Instance method
         IRMethod method = defineNewMethod(node, s, true);
-        addInstr(s, new DefineInstanceMethodInstr(method, getStaticMethodContainerType(s)));
+        addInstr(s, new DefineInstanceMethodInstr(method, getHostScopeType(s), getStaticMethodContainerType(s)));
         return new Symbol(method.getName());
     }
 
@@ -3333,7 +3342,7 @@ public class IRBuilder {
 
     public Operand buildUndef(Node node, IRScope s) {
         Operand methName = build(((UndefNode) node).getName(), s);
-        return addResultInstr(s, new UndefMethodInstr(s.createTemporaryVariable(), methName, getStaticMethodContainerType(s)));
+        return addResultInstr(s, new UndefMethodInstr(s.createTemporaryVariable(), methName, getHostScopeType(s), getStaticMethodContainerType(s)));
     }
 
     private Operand buildConditionalLoop(IRScope s, Node conditionNode,

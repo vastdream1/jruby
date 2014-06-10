@@ -23,12 +23,14 @@ import org.jruby.ir.operands.ScopeModule;
 
 public class DefineInstanceMethodInstr extends Instr implements FixedArityInstr {
     private final IRMethod method;
+    private final IRScopeType hostScopeType;
     private final IRScopeType targetScopeType;
 
     // SSS FIXME: Implicit self arg -- make explicit to not get screwed by inlining!
-    public DefineInstanceMethodInstr(IRMethod method, IRScopeType targetScopeType) {
+    public DefineInstanceMethodInstr(IRMethod method, IRScopeType hostScopeType, IRScopeType targetScopeType) {
         super(Operation.DEF_INST_METH);
         this.method = method;
+        this.hostScopeType = hostScopeType;
         this.targetScopeType = targetScopeType;
     }
 
@@ -39,7 +41,7 @@ public class DefineInstanceMethodInstr extends Instr implements FixedArityInstr 
 
     @Override
     public String toString() {
-        return getOperation() + "(" + method.getName() + ", " + method.getFileName() + ", target:" + targetScopeType + ")";
+        return getOperation() + "(" + method.getName() + ", " + method.getFileName() + ", hostScopeType:" + hostScopeType + ", target:" + targetScopeType + ")";
     }
 
     @Override
@@ -54,14 +56,14 @@ public class DefineInstanceMethodInstr extends Instr implements FixedArityInstr 
 
     @Override
     public Instr cloneForInlining(InlinerInfo ii) {
-        return new DefineInstanceMethodInstr(method, targetScopeType);
+        return new DefineInstanceMethodInstr(method, hostScopeType, targetScopeType);
     }
 
     // SSS FIXME: Go through this and DefineClassMethodInstr.interpret, clean up, extract common code
     @Override
     public Object interpret(ThreadContext context, DynamicScope currDynScope, IRubyObject self, Object[] temp) {
         Ruby runtime = context.runtime;
-        RubyModule clazz = IRRuntimeHelpers.findInstanceMethodContainer(context, currDynScope, self, targetScopeType);
+        RubyModule clazz = IRRuntimeHelpers.findInstanceMethodContainer(context, currDynScope, self, hostScopeType, targetScopeType);
 
         //if (clazz != context.getRubyClass()) {
         //    System.out.println("*** DING DING DING! *** For " + this + "; clazz: " + clazz + "; ruby module: " + context.getRubyClass());

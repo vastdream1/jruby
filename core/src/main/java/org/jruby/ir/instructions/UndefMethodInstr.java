@@ -19,14 +19,16 @@ import java.util.Map;
 public class UndefMethodInstr extends Instr implements ResultInstr, FixedArityInstr {
     private Variable result;
     private Operand methodName;
+    private final IRScopeType hostScopeType;
     private final IRScopeType targetScopeType;
 
     // SSS FIXME: Implicit self arg -- make explicit to not get screwed by inlining!
-    public UndefMethodInstr(Variable result, Operand methodName, IRScopeType targetScopeType) {
+    public UndefMethodInstr(Variable result, Operand methodName, IRScopeType hostScopeType, IRScopeType targetScopeType) {
         super(Operation.UNDEF_METHOD);
 
         this.result = result;
         this.methodName = methodName;
+        this.hostScopeType = hostScopeType;
         this.targetScopeType = targetScopeType;
     }
 
@@ -36,7 +38,7 @@ public class UndefMethodInstr extends Instr implements ResultInstr, FixedArityIn
 
     @Override
     public String toString() {
-        return super.toString() + "(" + methodName + ", target:" + targetScopeType + ")";
+        return super.toString() + "(" + methodName + ", hostScopeType: " + hostScopeType + ", target:" + targetScopeType + ")";
     }
 
     @Override
@@ -66,12 +68,12 @@ public class UndefMethodInstr extends Instr implements ResultInstr, FixedArityIn
     @Override
     public Instr cloneForInlining(InlinerInfo ii) {
         return new UndefMethodInstr((Variable) result.cloneForInlining(ii),
-                methodName.cloneForInlining(ii), targetScopeType);
+                methodName.cloneForInlining(ii), hostScopeType, targetScopeType);
     }
 
     @Override
     public Object interpret(ThreadContext context, DynamicScope currDynScope, IRubyObject self, Object[] temp) {
-        RubyModule module = IRRuntimeHelpers.findInstanceMethodContainer(context, currDynScope, self, targetScopeType);
+        RubyModule module = IRRuntimeHelpers.findInstanceMethodContainer(context, currDynScope, self, hostScopeType, targetScopeType);
         Object nameArg = methodName.retrieve(context, self, currDynScope, temp);
         String name = (nameArg instanceof String) ? (String) nameArg : nameArg.toString();
         module.undef(context, name);

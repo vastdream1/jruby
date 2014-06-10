@@ -17,14 +17,16 @@ import java.util.Map;
 public class AliasInstr extends Instr implements FixedArityInstr {
     private Operand newName;
     private Operand oldName;
+    private final IRScopeType hostScopeType;
     private final IRScopeType targetScopeType;
 
     // SSS FIXME: Implicit self arg -- make explicit to not get screwed by inlining!
-    public AliasInstr(Operand newName, Operand oldName, IRScopeType targetScopeType) {
+    public AliasInstr(Operand newName, Operand oldName, IRScopeType hostScopeType, IRScopeType targetScopeType) {
         super(Operation.ALIAS);
 
         this.newName = newName;
         this.oldName = oldName;
+        this.hostScopeType = hostScopeType;
         this.targetScopeType = targetScopeType;
     }
 
@@ -33,13 +35,17 @@ public class AliasInstr extends Instr implements FixedArityInstr {
         return new Operand[] {getNewName(), getOldName()};
     }
 
+    public IRScopeType getHostScopeType() {
+        return hostScopeType;
+    }
+
     public IRScopeType getTargetScopeType() {
         return targetScopeType;
     }
 
     @Override
     public String toString() {
-        return getOperation().toString() + "(" + ", " + getNewName() + ", " + getOldName() + ", target:" + targetScopeType + ")";
+        return getOperation().toString() + "(" + ", " + getNewName() + ", " + getOldName() + "hostScopeType:" + hostScopeType + ", target:" + targetScopeType + ")";
     }
 
     @Override
@@ -56,14 +62,14 @@ public class AliasInstr extends Instr implements FixedArityInstr {
 
     @Override
     public Instr cloneForInlining(InlinerInfo ii) {
-        return new AliasInstr(getNewName().cloneForInlining(ii), getOldName().cloneForInlining(ii), targetScopeType);
+        return new AliasInstr(getNewName().cloneForInlining(ii), getOldName().cloneForInlining(ii), hostScopeType, targetScopeType);
     }
 
     @Override
     public Object interpret(ThreadContext context, DynamicScope currDynScope, IRubyObject self, Object[] temp) {
         String newNameString = getNewName().retrieve(context, self, currDynScope, temp).toString();
         String oldNameString = getOldName().retrieve(context, self, currDynScope, temp).toString();
-        IRRuntimeHelpers.defineAlias(context, self, currDynScope, newNameString, oldNameString, targetScopeType);
+        IRRuntimeHelpers.defineAlias(context, self, currDynScope, newNameString, oldNameString, hostScopeType, targetScopeType);
         return null;
     }
 
