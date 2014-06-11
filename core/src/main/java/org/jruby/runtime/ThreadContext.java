@@ -609,10 +609,25 @@ public final class ThreadContext {
                 return (RubyModule)self;
             } else if (ds.inInstanceEval()) {
                 return self.getSingletonClass();
+            } else if (ds.inBindingEval()) {
+                // If this is a binding eval, find the original scope
+                // that is wrapped by the eval-scope and use that binding-time
+                // scope's scope-type to determine the method container.
+                type = ds.getNextCapturedScope().getStaticScope().getScopeType();
+                switch (type) {
+                    case SCRIPT_BODY:
+                        return self.getType();
+
+                    case MODULE_BODY:
+                    case CLASS_BODY:
+                    case METACLASS_BODY:
+                        return (RubyModule)self;
+                }
             } else if (type == null) {
                 continue;
             } else {
                 if (hostType.isMethod()) {
+                    // FIXME: Is this always correct?
                     return self.getSingletonClass();
                 } else {
                     switch (type) {

@@ -123,6 +123,7 @@ public class ASTInterpreter {
 
         // in 1.9, eval scopes are local to the binding
         evalScope = binding.getEvalScope(runtime);
+        evalScope.setInBindingEval();
 
         // FIXME:  This determine module is in a strange location and should somehow be in block
         evalScope.getStaticScope().determineModule();

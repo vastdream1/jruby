@@ -45,10 +45,11 @@ public abstract class DynamicScope {
     // Captured dynamic scopes
     protected final DynamicScope parent;
 
-    // Are we in a instance/class/module eval context?
+    // Are we in a instance/module/binding eval context?
     // 0 => neither
     // 1 => instance-eval
     // 2 => module-eval
+    // 3 => binding-eval
     private int evalType;
 
     // A place to store that special hiding space that bindings need to implement things like:
@@ -397,12 +398,20 @@ public abstract class DynamicScope {
         return evalType == 2;
     }
 
+    public boolean inBindingEval() {
+        return evalType == 3;
+    }
+
     public void setInInstanceEval() {
         evalType = 1;
     }
 
     public void setInModuleEval() {
         evalType = 2;
+    }
+
+    public void setInBindingEval() {
+        evalType = 3;
     }
 
     public void clearEvalFlag() {
