@@ -598,23 +598,29 @@ public final class ThreadContext {
         return false;
     }
 
+    /**
+     * Walk the call-stack to determine the nearest available method container (module)
+     * that should process method defines, alias, undefs.
+     **/
     public RubyModule findNearestMethodContainer(DynamicScope currDynScope, IRubyObject self) {
         DynamicScope[] stack = scopeStack;
         IRScopeType hostType = currDynScope.getStaticScope().getScopeType();
         for (int i = scopeIndex; i >= 0; i--) {
             DynamicScope ds   = stack[i];
             StaticScope  s    = ds.getStaticScope();
-            IRScopeType  type = s.getScopeType();
+            IRScopeType  scopeType = s.getScopeType();
             if (ds.inModuleEval()) {
+                // Stack-walking stops here.
                 return (RubyModule)self;
             } else if (ds.inInstanceEval()) {
+                // Stack-walking stops here.
                 return self.getSingletonClass();
             } else if (ds.inBindingEval()) {
                 // If this is a binding eval, find the original scope
                 // that is wrapped by the eval-scope and use that binding-time
                 // scope's scope-type to determine the method container.
-                type = ds.getNextCapturedScope().getStaticScope().getScopeType();
-                switch (type) {
+                scopeType = ds.getNextCapturedScope().getStaticScope().getScopeType();
+                switch (scopeType) {
                     case SCRIPT_BODY:
                         return self.getType();
 
@@ -622,23 +628,37 @@ public final class ThreadContext {
                     case CLASS_BODY:
                     case METACLASS_BODY:
                         return (RubyModule)self;
-                }
-            } else if (type == null) {
-                continue;
-            } else {
-                if (hostType.isMethod()) {
-                    // FIXME: Is this always correct?
-                    return self.getSingletonClass();
-                } else {
-                    switch (type) {
-                        case SCRIPT_BODY:
-                            return self.getType();
 
-                        case MODULE_BODY:
-                        case CLASS_BODY:
-                        case METACLASS_BODY:
-                            return (RubyModule)self;
-                    }
+                    // SSS FIXME: Why doesn't stack-walking stop here?
+                    //
+                    // def_method in ~/jruby/lib/ruby/2.1/erb.rb fails
+                    // if we forcibly stop stack-walking here.
+                    //
+                    // But, yet, it seems odd to walk the stack once we
+                    // hit a binding which may not exist on the call stack at all.
+                    // Basically, the conundrum is what to do if the binding came
+                    // from a block/closure.
+                }
+            } else if (scopeType == null) {
+                // These are those extra eval-scopes that are added for instance/module evals.
+                // Just ignore them!
+                //
+                // These extra eval-scopes are handled specially
+                // in the interpreter as well (see getEvalContainerScope).
+                continue;
+            } else if (hostType.isMethod()) {
+                // Stack-walking stops here.
+                return self.getMetaClass();
+            } else {
+                // Stack-walking continues if we run into closures
+                switch (scopeType) {
+                    case SCRIPT_BODY:
+                        return self.getType();
+
+                    case MODULE_BODY:
+                    case CLASS_BODY:
+                    case METACLASS_BODY:
+                        return (RubyModule)self;
                 }
             }
         }
