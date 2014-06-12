@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jruby.anno.JRubyMethod;
 import org.jruby.common.IRubyWarnings.ID;
-import org.jruby.evaluator.ASTInterpreter;
 import org.jruby.exceptions.JumpException;
 import org.jruby.internal.runtime.methods.DynamicMethod;
 import org.jruby.javasupport.JavaObject;
@@ -1621,10 +1620,10 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
         try {
             if (args.length == 1) {
                 IRubyObject valueInYield = args[0];
-                return setupBlock(block, evalType).yieldNonArray(context, valueInYield, this, context.getRubyClass());
+                return setupBlock(block, evalType).yieldNonArray(context, valueInYield, this); // context.getRubyClass());
             } else {
                 IRubyObject valueInYield = RubyArray.newArrayNoCopy(context.runtime, args);
-                return setupBlock(block, evalType).yieldArray(context, valueInYield, this, context.getRubyClass());
+                return setupBlock(block, evalType).yieldArray(context, valueInYield, this); // context.getRubyClass());
             }
             //TODO: Should next and return also catch here?
         } catch (JumpException.BreakJump bj) {
@@ -1662,7 +1661,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
         block.getBinding().setVisibility(PUBLIC);
 
         try {
-            return setupBlock(block, evalType).yieldNonArray(context, this, this, context.getRubyClass());
+            return setupBlock(block, evalType).yieldNonArray(context, this, this); // context.getRubyClass());
             //TODO: Should next and return also catch here?
         } catch (JumpException.BreakJump bj) {
             return (IRubyObject) bj.getValue();
