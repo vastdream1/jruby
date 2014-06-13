@@ -26,7 +26,9 @@
  ***** END LICENSE BLOCK *****/
 package org.jruby.runtime.ivars;
 
+import org.jruby.RubyBasicObject;
 import org.jruby.RubyClass;
+import org.jruby.util.unsafe.UnsafeHolder;
 
 /**
  * A variable accessor that accesses a field directly;
@@ -56,5 +58,41 @@ public abstract class FieldVariableAccessor extends VariableAccessor {
      */
     public int getOffset() {
         return offset;
+    }
+
+    protected static long getVariableOffset(Class target, String name) {
+        try {
+            return UnsafeHolder.U.objectFieldOffset(target.getDeclaredField(name));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Set the given variable index into the specified object only if the current value
+     * is referentially equal to the expected value.
+     *
+     * @param self the object into which to set the variable
+     * @param expected the expected value of the variable
+     * @param value the variable's value
+     * @return true if the swap was successful; false otherwise
+     */
+    public static boolean casVariable(Object self, long offset, Object expected, Object value) {
+        return UnsafeHolder.U.compareAndSwapObject(self, offset, expected, value);
+    }
+
+    /**
+     * Swap the current value with the given value atomically
+     *
+     * @param self the object into which to set the variable
+     * @param value the variable's value
+     */
+    public static Object swapVariable(Object self, long offset, Object value) {
+        while (true) {
+            Object current = UnsafeHolder.U.getObjectVolatile(self, offset);
+            if (UnsafeHolder.U.compareAndSwapObject(self, offset, current, value)) {
+                return true;
+            }
+        }
     }
 }

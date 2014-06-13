@@ -124,6 +124,31 @@ public class VariableAccessor {
         ((RubyBasicObject)object).checkFrozen();
         VariableTableManager.setVariableInternal(realClass, (RubyBasicObject)object, index, value);
     }
+
+    /**
+     * Atomically compare the current value with the expected, replacing it with value only if expected is referentially
+     * equal to current.
+     *
+     * @param object the object in which we want to swap a value
+     * @param expected the expected value
+     * @param value the new value
+     * @return true if the swap was successful; false otherwise
+     */
+    public boolean compareAndSwap(Object object, Object expected, Object value) {
+        ((RubyBasicObject)object).checkFrozen();
+        return VariableTableManager.casVariableInternal(realClass, (RubyBasicObject)object, index, expected, value);
+    }
+
+    /**
+     * Swap the current value with the given value atomically
+     *
+     * @param self the object into which to set the variable
+     * @param value the variable's value
+     */
+    public Object swap(Object self, Object value) {
+        ((RubyBasicObject)self).checkFrozen();
+        return VariableTableManager.swapVariableInternal(realClass, (RubyBasicObject)self, index, value);
+    }
     
     /** a dummy accessor that will always return null */
     public static final VariableAccessor DUMMY_ACCESSOR = new VariableAccessor(null, null, -1, -1);

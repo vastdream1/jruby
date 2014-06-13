@@ -29,6 +29,7 @@ package org.jruby.runtime.ivars;
 import org.jruby.RubyBasicObject;
 import org.jruby.RubyClass;
 import org.jruby.util.unsafe.UnsafeHolder;
+import sun.misc.Unsafe;
 
 /**
  * A variable accessor that uses a stamped volatile int and Unsafe methods to
@@ -104,6 +105,54 @@ public class StampedVariableAccessor extends VariableAccessor {
     }
 
     /**
+     * Set the given variable index into the specified object only if the current value
+     * is referentially equal to the expected value.
+     *
+     * @param self the object into which to set the variable
+     * @param realClass the "real" class for the object
+     * @param index the index of the variable
+     * @param expected the expected value of the variable
+     * @param value the variable's value
+     * @return true if the swap was successful; false otherwise
+     */
+    public static boolean casVariable(RubyBasicObject self, RubyClass realClass, int index, Object expected, Object value) {
+        Object[] currentTable = (Object[]) UnsafeHolder.U.getObjectVolatile(self, RubyBasicObject.VAR_TABLE_OFFSET);
+
+        if (currentTable == null || index >= currentTable.length) return false; // no value is considered not-equal to every value
+
+        return cas(currentTable, index, expected, value);
+    }
+
+    /**
+     * Swap the current value with the given value atomically
+     *
+     * @param self the object into which to set the variable
+     * @param realClass the "real" class for the object
+     * @param index the index of the variable
+     * @param value the variable's value
+     */
+    public static Object swapVariable(RubyBasicObject self, RubyClass realClass, int index, Object value) {
+        Object[] currentTable = (Object[]) UnsafeHolder.U.getObjectVolatile(self, RubyBasicObject.VAR_TABLE_OFFSET);
+
+        if (currentTable == null || index >= currentTable.length) return false; // no value is considered not-equal to every value
+
+        while (true) {
+            Object current = getVolatile(currentTable, index);
+            if (cas(currentTable, index, current, value)) {
+                return current;
+            }
+        }
+    }
+
+    private static boolean cas(Object[] currentTable, int index, Object current, Object value) {
+        return UnsafeHolder.U.compareAndSwapObject(currentTable, UnsafeHolder.ARRAY_OBJECT_BASE_OFFSET + UnsafeHolder.ARRAY_OBJECT_INDEX_SCALE * index, current, value);
+    }
+
+    private static Object getVolatile(Object[] currentTable, int index) {
+        return UnsafeHolder.U.getObjectVolatile(currentTable, UnsafeHolder.ARRAY_OBJECT_BASE_OFFSET + UnsafeHolder.ARRAY_OBJECT_INDEX_SCALE * index);
+    }
+
+    /**
      * Create or exapand a table for the given object, using Unsafe CAS and
      * ordering operations to ensure visibility.
      * 
@@ -120,7 +169,8 @@ public class StampedVariableAccessor extends VariableAccessor {
         if (!UnsafeHolder.U.compareAndSwapInt(self, RubyBasicObject.STAMP_OFFSET, currentStamp, ++currentStamp)) {
             return false;
         }
-        
+
+        if (realClass == null) System.out.println("null real class: " + self.getMetaClass());
         Object[] newTable = new Object[realClass.getVariableTableSizeWithExtras()];
         
         if(currentTable != null) {
@@ -138,7 +188,7 @@ public class StampedVariableAccessor extends VariableAccessor {
     }
 
     /**
-     * Update the given table table for the given object, using Unsafe fence or
+     * Update the given table for the given object, using Unsafe fence or
      * volatile operations to ensure visibility.
      * 
      * @param self the object into which to set the variable

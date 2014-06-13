@@ -90,6 +90,47 @@ public class SynchronizedVariableAccessor extends VariableAccessor {
     }
 
     /**
+     * Set the given variable index into the specified object only if the current value
+     * is referentially equal to the expected value.
+     *
+     * @param self the object into which to set the variable
+     * @param realClass the "real" class for the object
+     * @param index the index of the variable
+     * @param expected the expected value of the variable
+     * @param value the variable's value
+     * @return true if the swap was successful; false otherwise
+     */
+    public static boolean casVariable(RubyBasicObject self, RubyClass realClass, int index, Object expected, Object value) {
+        synchronized (self) {
+            Object[] table = ensureTable(self, realClass, index);
+            Object current = table[index];
+            if (current == expected) {
+                table[index] = value;
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Swap the current value with the given value atomically
+     *
+     * @param self the object into which to set the variable
+     * @param realClass the "real" class for the object
+     * @param index the index of the variable
+     * @param value the variable's value
+     */
+    public static Object swapVariable(RubyBasicObject self, RubyClass realClass, int index, Object value) {
+        synchronized (self) {
+            Object[] table = ensureTable(self, realClass, index);
+            Object current = table[index];
+            table[index] = value;
+            return current;
+        }
+    }
+
+    /**
      * Ensure the variable table is ready to receive the given variable index.
      * 
      * @param self the object that holds the variable table

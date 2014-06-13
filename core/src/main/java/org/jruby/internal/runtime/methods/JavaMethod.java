@@ -707,6 +707,9 @@ public abstract class JavaMethod extends DynamicMethod implements Cloneable, Met
         public JavaMethodZeroOrOneOrN(RubyModule implementationClass, Visibility visibility, CallConfiguration callConfig) {
             super(implementationClass, visibility, callConfig);
         }
+        public JavaMethodZeroOrOneOrN(RubyModule implementationClass, Visibility visibility, CallConfiguration callConfig, String name) {
+            super(implementationClass, visibility, callConfig, name);
+        }
         
         @Override
         public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name, IRubyObject arg0, Block block) {
@@ -723,6 +726,9 @@ public abstract class JavaMethod extends DynamicMethod implements Cloneable, Met
         }
         public JavaMethodZeroOrOneOrTwoOrN(RubyModule implementationClass, Visibility visibility, CallConfiguration callConfig) {
             super(implementationClass, visibility, callConfig);
+        }
+        public JavaMethodZeroOrOneOrTwoOrN(RubyModule implementationClass, Visibility visibility, CallConfiguration callConfig, String name) {
+            super(implementationClass, visibility, callConfig, name);
         }
 
         @Override
@@ -912,6 +918,9 @@ public abstract class JavaMethod extends DynamicMethod implements Cloneable, Met
         }
         public JavaMethodZeroOrOneOrTwo(RubyModule implementationClass, Visibility visibility, CallConfiguration callConfig) {
             super(implementationClass, visibility, callConfig);
+        }
+        public JavaMethodZeroOrOneOrTwo(RubyModule implementationClass, Visibility visibility, CallConfiguration callConfig, String name) {
+            super(implementationClass, visibility, callConfig, name);
         }
 
         @Override

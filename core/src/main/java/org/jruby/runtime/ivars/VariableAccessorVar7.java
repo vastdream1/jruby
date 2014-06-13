@@ -96,4 +96,29 @@ public class VariableAccessorVar7 extends FieldVariableAccessor {
     public static void setVariable(RubyBasicObject self, RubyClass realClass, int index, Object value) {
         ((RubyObjectVar7)self).var7 = value;
     }
+
+    private static final long OFFSET = getVariableOffset(RubyObjectVar7.class, "var7");
+
+    /**
+     * Set the given variable index into the specified object only if the current value
+     * is referentially equal to the expected value.
+     *
+     * @param self the object into which to set the variable
+     * @param expected the expected value of the variable
+     * @param value the variable's value
+     * @return true if the swap was successful; false otherwise
+     */
+    public boolean compareAndSwap(Object self, Object expected, Object value) {
+        return casVariable(self, OFFSET, expected, value);
+    }
+
+    /**
+     * Swap the current value with the given value atomically
+     *
+     * @param self the object into which to set the variable
+     * @param value the variable's value
+     */
+    public Object swap(Object self, Object value) {
+        return swapVariable(self, OFFSET, value);
+    }
 }

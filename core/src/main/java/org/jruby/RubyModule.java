@@ -54,6 +54,7 @@ import org.jruby.exceptions.RaiseException;
 import org.jruby.internal.runtime.methods.AliasMethod;
 import org.jruby.internal.runtime.methods.AttrReaderMethod;
 import org.jruby.internal.runtime.methods.AttrWriterMethod;
+import org.jruby.internal.runtime.methods.AttributeMethod;
 import org.jruby.internal.runtime.methods.CacheableMethod;
 import org.jruby.internal.runtime.methods.CallConfiguration;
 import org.jruby.internal.runtime.methods.DefaultMethod;
@@ -79,6 +80,7 @@ import org.jruby.runtime.builtin.Variable;
 import org.jruby.runtime.callsite.CacheEntry;
 import org.jruby.runtime.callsite.FunctionalCachingCallSite;
 import org.jruby.runtime.ivars.MethodData;
+import org.jruby.runtime.ivars.VariableAccessor;
 import org.jruby.runtime.load.IAutoloadMethod;
 import org.jruby.runtime.marshal.MarshalStream;
 import org.jruby.runtime.marshal.UnmarshalStream;
@@ -1292,7 +1294,7 @@ public class RubyModule extends RubyObject {
         return getRuntime().defineModuleUnder(name, this);
     }
 
-    private void addAccessor(ThreadContext context, String internedName, Visibility visibility, boolean readable, boolean writeable) {
+    private void addAccessor(ThreadContext context, final String internedName, Visibility visibility, boolean readable, boolean writeable, boolean atomic) {
         assert internedName == internedName.intern() : internedName + " is not interned";
 
         final Ruby runtime = context.runtime;
@@ -1310,13 +1312,60 @@ public class RubyModule extends RubyObject {
 
         final String variableName = ("@" + internedName).intern();
         if (readable) {
+            // CAS and atomicity do not have much relevance for read-only attributes, but
+            // JRuby should already be doing volatile/fenced reads anyway.
             addMethod(internedName, new AttrReaderMethod(this, visibility, CallConfiguration.FrameNoneScopeNone, variableName));
             callMethod(context, "method_added", runtime.fastNewSymbol(internedName));
         }
         if (writeable) {
-            internedName = (internedName + "=").intern();
-            addMethod(internedName, new AttrWriterMethod(this, visibility, CallConfiguration.FrameNoneScopeNone, variableName));
+            String writeName = (internedName + "=").intern();
+            addMethod(writeName, new AttrWriterMethod(this, visibility, CallConfiguration.FrameNoneScopeNone, variableName));
             callMethod(context, "method_added", runtime.fastNewSymbol(internedName));
+
+            if (atomic) {
+                String casName = (internedName + "_cas").intern();
+                String swapName = (internedName + "_swap").intern();
+                final IRubyObject t = runtime.getTrue();
+                final IRubyObject f = runtime.getFalse();
+                addMethod(casName, new AttributeMethod(this, visibility, CallConfiguration.FrameNoneScopeNone, variableName, casName) {
+                    {setArity(Arity.TWO_REQUIRED);}
+
+                    @Override
+                    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name, IRubyObject arg0, IRubyObject arg1) {
+                        VariableAccessor accessor = verifyAccessorForWrite(self.getMetaClass().getRealClass());
+                        return accessor.compareAndSwap(self, arg0, arg1) ? t : f;
+                    }
+
+                    @Override
+                    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name, IRubyObject arg) {
+                        return raiseArgumentError(this, context, name, 1, 2, 2);
+                    }
+
+                    @Override
+                    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name) {
+                        return raiseArgumentError(this, context, name, 0, 2, 2);
+                    }
+                });
+                addMethod(swapName, new AttributeMethod(this, visibility, CallConfiguration.FrameNoneScopeNone, variableName, swapName) {
+                    {setArity(Arity.ONE_REQUIRED);}
+
+                    @Override
+                    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name, IRubyObject arg0, IRubyObject arg1) {
+                        return raiseArgumentError(this, context, name, 2, 1, 1);
+                    }
+
+                    @Override
+                    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name, IRubyObject arg) {
+                        VariableAccessor accessor = verifyAccessorForWrite(self.getMetaClass().getRealClass());
+                        return (IRubyObject)accessor.swap(self, arg);
+                    }
+
+                    @Override
+                    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name) {
+                        return raiseArgumentError(this, context, name, 0, 1, 1);
+                    }
+                });
+            }
         }
     }
 
@@ -1829,15 +1878,15 @@ public class RubyModule extends RubyObject {
     }
     
     public void addReadWriteAttribute(ThreadContext context, String name) {
-        addAccessor(context, name.intern(), PUBLIC, true, true);
+        addAccessor(context, name.intern(), PUBLIC, true, true, false);
     }
     
     public void addReadAttribute(ThreadContext context, String name) {
-        addAccessor(context, name.intern(), PUBLIC, true, false);
+        addAccessor(context, name.intern(), PUBLIC, true, false, false);
     }
     
     public void addWriteAttribute(ThreadContext context, String name) {
-        addAccessor(context, name.intern(), PUBLIC, false, true);
+        addAccessor(context, name.intern(), PUBLIC, false, true, false);
     }
 
     /** rb_mod_attr
@@ -1853,7 +1902,7 @@ public class RubyModule extends RubyObject {
 
         if (args.length == 2 && (args[1] == runtime.getTrue() || args[1] == runtime.getFalse())) {
             runtime.getWarnings().warn(ID.OBSOLETE_ARGUMENT, "optional boolean argument is obsoleted");
-            addAccessor(context, args[0].asJavaString().intern(), context.getCurrentVisibility(), args[0].isTrue(), true);
+            addAccessor(context, args[0].asJavaString().intern(), context.getCurrentVisibility(), args[0].isTrue(), true, false);
             return runtime.getNil();
         }
 
@@ -1874,7 +1923,7 @@ public class RubyModule extends RubyObject {
         Visibility visibility = context.getCurrentVisibility();
 
         for (int i = 0; i < args.length; i++) {
-            addAccessor(context, args[i].asJavaString().intern(), visibility, true, false);
+            addAccessor(context, args[i].asJavaString().intern(), visibility, true, false, false);
         }
 
         return context.runtime.getNil();
@@ -1889,7 +1938,7 @@ public class RubyModule extends RubyObject {
         Visibility visibility = context.getCurrentVisibility();
 
         for (int i = 0; i < args.length; i++) {
-            addAccessor(context, args[i].asJavaString().intern(), visibility, false, true);
+            addAccessor(context, args[i].asJavaString().intern(), visibility, false, true, false);
         }
 
         return context.runtime.getNil();
@@ -1907,17 +1956,42 @@ public class RubyModule extends RubyObject {
      */
     @JRubyMethod(name = "attr_accessor", rest = true, visibility = PRIVATE, reads = VISIBILITY)
     public IRubyObject attr_accessor(ThreadContext context, IRubyObject[] args) {
+        Ruby runtime = context.runtime;
+        boolean atomic = false;
+        int argc = args.length;
+
         // Check the visibility of the previous frame, which will be the frame in which the class is being eval'ed
         Visibility visibility = context.getCurrentVisibility();
 
-        for (int i = 0; i < args.length; i++) {
+        // The :atomic option specifies whether to define atomic operations for this attr
+        if (argc > 0) {
+            IRubyObject opts = TypeConverter.checkHashType(runtime, args[argc - 1]);
+            if (!opts.isNil()) {
+                argc--;
+                atomic = ((RubyHash)opts).op_aref(context, runtime.newSymbol("atomic")).isTrue();
+            }
+        }
+
+        for (int i = 0; i < argc; i++) {
             // This is almost always already interned, since it will be called with a symbol in most cases
             // but when created from Java code, we might getService an argument that needs to be interned.
             // addAccessor has as a precondition that the string MUST be interned
-            addAccessor(context, args[i].asJavaString().intern(), visibility, true, true);
+            addAccessor(context, args[i].asJavaString().intern(), visibility, true, true, atomic);
         }
 
         return context.runtime.getNil();
+    }
+
+    private boolean checkAtomicOption(ThreadContext context, Ruby runtime, IRubyObject[] args) {
+        boolean atomic = false;
+        // check for options that modify the behavior of this accessor
+        if (args.length > 0) {
+            IRubyObject opts = TypeConverter.checkHashType(runtime, args[args.length - 1]);
+            if (!opts.isNil()) {
+                atomic = ((RubyHash)opts).op_aref(context, runtime.newSymbol("atomic")).isTrue();
+            }
+        }
+        return atomic;
     }
 
     /**

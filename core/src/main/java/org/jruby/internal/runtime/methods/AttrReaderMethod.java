@@ -31,6 +31,7 @@ package org.jruby.internal.runtime.methods;
 import java.util.Arrays;
 import org.jruby.RubyClass;
 import org.jruby.RubyModule;
+import org.jruby.runtime.Arity;
 import org.jruby.runtime.ivars.VariableAccessor;
 import org.jruby.internal.runtime.methods.JavaMethod.JavaMethodZero;
 import org.jruby.runtime.ThreadContext;
@@ -41,37 +42,24 @@ import org.jruby.runtime.ivars.MethodData;
 /**
  * A method type for attribute writers (as created by attr_writer or attr_accessor).
  */
-public class AttrReaderMethod extends JavaMethodZero {
-    private MethodData methodData;
-    private VariableAccessor accessor = VariableAccessor.DUMMY_ACCESSOR;
-
+public class AttrReaderMethod extends AttributeMethod {
     public AttrReaderMethod(RubyModule implementationClass, Visibility visibility, CallConfiguration callConfig, String variableName) {
-        super(implementationClass, visibility, callConfig, variableName);
+        super(implementationClass, visibility, callConfig, variableName, variableName);
+        setArity(Arity.NO_ARGUMENTS);
+    }
+
+    @Override
+    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name, IRubyObject arg) {
+        return raiseArgumentError(this, context, name, 1, 0, 0);
+    }
+
+    @Override
+    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name, IRubyObject arg0, IRubyObject arg1) {
+        return raiseArgumentError(this, context, name, 2, 0, 0);
     }
 
     public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule clazz, String name) {
-        IRubyObject variable = (IRubyObject) verifyAccessor(self.getMetaClass().getRealClass()).get(self);
+        IRubyObject variable = (IRubyObject) verifyAccessorForRead(self.getMetaClass().getRealClass()).get(self);
         return variable == null ? context.nil : variable;
-    }
-    
-    public String getVariableName() {
-        return name;
-    }
-
-    private VariableAccessor verifyAccessor(RubyClass cls) {
-        VariableAccessor localAccessor = accessor;
-        if (localAccessor.getClassId() != cls.id) {
-            localAccessor = cls.getVariableAccessorForRead(name);
-            accessor = localAccessor;
-        }
-        return localAccessor;
-    }
-    
-    @Override
-    public MethodData getMethodData() {
-        if (methodData == null){
-            methodData = new MethodData(name, "dummyfile", Arrays.asList(name));
-        }
-        return methodData;
     }
 }

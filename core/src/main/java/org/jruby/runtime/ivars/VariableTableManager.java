@@ -158,6 +158,40 @@ public class VariableTableManager {
     }
 
     /**
+     * Atomically compare the current value with the expected, replacing it with value only if expected is referentially
+     * equal to current.
+     *
+     * @param realClass the "real" class of the object
+     * @param self the object into which to set the variable
+     * @param index the index allocated for the variable
+     * @param expected the expected value
+     * @param value the value of the variable
+     */
+    public static boolean casVariableInternal(RubyClass realClass, RubyBasicObject self, int index, Object expected, Object value) {
+        if(UnsafeHolder.U == null) {
+            return SynchronizedVariableAccessor.casVariable(self,realClass,index,expected,value);
+        } else {
+            return StampedVariableAccessor.casVariable(self,realClass,index,expected,value);
+        }
+    }
+
+    /**
+     * Swap the current value with the given value atomically
+     *
+     * @param realClass the "real" class of the object
+     * @param self the object into which to set the variable
+     * @param index the index allocated for the variable
+     * @param value the value of the variable
+     */
+    public static Object swapVariableInternal(RubyClass realClass, RubyBasicObject self, int index, Object value) {
+        if(UnsafeHolder.U == null) {
+            return SynchronizedVariableAccessor.swapVariable(self,realClass,index,value);
+        } else {
+            return StampedVariableAccessor.swapVariable(self,realClass,index,value);
+        }
+    }
+
+    /**
      * Get the variable accessor for the given name with intent to use it for
      * writing.
      * 

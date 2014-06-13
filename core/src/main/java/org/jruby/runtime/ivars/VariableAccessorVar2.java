@@ -29,6 +29,7 @@ package org.jruby.runtime.ivars;
 import org.jruby.RubyBasicObject;
 import org.jruby.RubyClass;
 import org.jruby.RubyObjectVar2;
+import org.jruby.util.unsafe.UnsafeHolder;
 
 /**
  * A variable accessor that accesses a var2 field directly;
@@ -95,5 +96,30 @@ public class VariableAccessorVar2 extends FieldVariableAccessor {
      */
     public static void setVariable(RubyBasicObject self, RubyClass realClass, int index, Object value) {
         ((RubyObjectVar2)self).var2 = value;
+    }
+
+    private static final long OFFSET = getVariableOffset(RubyObjectVar2.class, "var2");
+
+    /**
+     * Set the given variable index into the specified object only if the current value
+     * is referentially equal to the expected value.
+     *
+     * @param self the object into which to set the variable
+     * @param expected the expected value of the variable
+     * @param value the variable's value
+     * @return true if the swap was successful; false otherwise
+     */
+    public boolean compareAndSwap(Object self, Object expected, Object value) {
+        return casVariable(self, OFFSET, expected, value);
+    }
+
+    /**
+     * Swap the current value with the given value atomically
+     *
+     * @param self the object into which to set the variable
+     * @param value the variable's value
+     */
+    public Object swap(Object self, Object value) {
+        return swapVariable(self, OFFSET, value);
     }
 }
