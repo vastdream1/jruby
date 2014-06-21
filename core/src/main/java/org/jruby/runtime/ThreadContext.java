@@ -621,9 +621,6 @@ public final class ThreadContext {
                 // scope's scope-type to determine the method container.
                 scopeType = ds.getNextCapturedScope().getStaticScope().getScopeType();
                 switch (scopeType) {
-                    case SCRIPT_BODY:
-                        return self.getType();
-
                     case MODULE_BODY:
                     case CLASS_BODY:
                     case METACLASS_BODY:
@@ -646,19 +643,20 @@ public final class ThreadContext {
                 // These extra eval-scopes are handled specially
                 // in the interpreter as well (see getEvalContainerScope).
                 continue;
-            } else if (hostType.isMethod()) {
-                // Stack-walking stops here.
-                return self.getMetaClass();
             } else {
-                // Stack-walking continues if we run into closures
-                switch (scopeType) {
-                    case SCRIPT_BODY:
-                        return self.getType();
-
-                    case MODULE_BODY:
-                    case CLASS_BODY:
-                    case METACLASS_BODY:
-                        return (RubyModule)self;
+                if (hostType.isMethod()) {
+                    // Stack-walking stops here.
+                    // In a dynamic context, the metaclass always captures the new method
+                    // independent of what we find on the stack below it.
+                    return self.getMetaClass();
+                } else {
+                    // Stack-walking continues if we run into closures
+                    switch (scopeType) {
+                        case MODULE_BODY:
+                        case CLASS_BODY:
+                        case METACLASS_BODY:
+                            return (RubyModule)self;
+                    }
                 }
             }
         }

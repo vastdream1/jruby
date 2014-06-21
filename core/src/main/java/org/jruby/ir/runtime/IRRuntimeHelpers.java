@@ -648,23 +648,26 @@ public class IRRuntimeHelpers {
     }
 
     private static RubyModule getTargetClass(IRScopeType hostScopeType, IRScopeType targetScopeType, IRubyObject self) {
-        switch (targetScopeType) {
-            case SCRIPT_BODY:
-                return self.getType();
-
-            case MODULE_BODY:
-            case CLASS_BODY:
-                return hostScopeType == IRScopeType.INSTANCE_METHOD ? self.getType() : (RubyModule)self;
-
-            case METACLASS_BODY:
-                return hostScopeType == IRScopeType.INSTANCE_METHOD ? self.getSingletonClass() : (RubyModule)self;
-
-            default:
-                throw new RuntimeException("Should not get here!");
+        if (hostScopeType.isMethod()) {
+            return self.getMetaClass();
+        } else {
+            switch (targetScopeType) {
+                case MODULE_BODY:
+                case CLASS_BODY:
+                case METACLASS_BODY:
+                    return (RubyModule)self;
+            }
         }
+
+        throw new RuntimeException("Should not get here for static resolution scenario!");
     }
 
     public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self, IRScopeType hostScopeType, IRScopeType staticTargetScopeType) {
+        // Quick bypass for the script-body 'self' scenario
+        if (self == context.runtime.getTopSelf()) {
+            return self.getType();
+        }
+
         if (staticTargetScopeType == IRScopeType.CLOSURE || staticTargetScopeType == IRScopeType.EVAL_SCRIPT) {
             return context.findNearestMethodContainer(currDynScope, self);
         } else {
