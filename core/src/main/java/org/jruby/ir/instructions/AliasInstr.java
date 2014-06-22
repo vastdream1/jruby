@@ -17,16 +17,18 @@ import java.util.Map;
 public class AliasInstr extends Instr implements FixedArityInstr {
     private Operand newName;
     private Operand oldName;
-    private final IRScopeType hostScopeType;
+    private final boolean requiresDynResolution;
+    private final boolean definedInMethod;
     private final IRScopeType targetScopeType;
 
     // SSS FIXME: Implicit self arg -- make explicit to not get screwed by inlining!
-    public AliasInstr(Operand newName, Operand oldName, IRScopeType hostScopeType, IRScopeType targetScopeType) {
+    public AliasInstr(Operand newName, Operand oldName, boolean requiresDynResolution, boolean definedInMethod, IRScopeType targetScopeType) {
         super(Operation.ALIAS);
 
         this.newName = newName;
         this.oldName = oldName;
-        this.hostScopeType = hostScopeType;
+        this.requiresDynResolution = true;
+        this.definedInMethod = true;
         this.targetScopeType = targetScopeType;
     }
 
@@ -35,17 +37,21 @@ public class AliasInstr extends Instr implements FixedArityInstr {
         return new Operand[] {getNewName(), getOldName()};
     }
 
-    public IRScopeType getHostScopeType() {
-        return hostScopeType;
-    }
-
     public IRScopeType getTargetScopeType() {
         return targetScopeType;
     }
 
+    public boolean requiresDynResolution() {
+        return requiresDynResolution;
+    }
+
+    public boolean isDefinedInMethod() {
+        return definedInMethod;
+    }
+
     @Override
     public String toString() {
-        return getOperation().toString() + "(" + ", " + getNewName() + ", " + getOldName() + "hostScopeType:" + hostScopeType + ", target:" + targetScopeType + ")";
+        return getOperation().toString() + "(" + ", " + getNewName() + ", " + getOldName() + ", dynRes: " + requiresDynResolution + ", inMethod:" + definedInMethod + ", target:" + targetScopeType + ")";
     }
 
     @Override
@@ -62,14 +68,14 @@ public class AliasInstr extends Instr implements FixedArityInstr {
 
     @Override
     public Instr cloneForInlining(InlinerInfo ii) {
-        return new AliasInstr(getNewName().cloneForInlining(ii), getOldName().cloneForInlining(ii), hostScopeType, targetScopeType);
+        return new AliasInstr(getNewName().cloneForInlining(ii), getOldName().cloneForInlining(ii), requiresDynResolution, definedInMethod, targetScopeType);
     }
 
     @Override
     public Object interpret(ThreadContext context, DynamicScope currDynScope, IRubyObject self, Object[] temp) {
         String newNameString = getNewName().retrieve(context, self, currDynScope, temp).toString();
         String oldNameString = getOldName().retrieve(context, self, currDynScope, temp).toString();
-        IRRuntimeHelpers.defineAlias(context, self, currDynScope, newNameString, oldNameString, hostScopeType, targetScopeType);
+        IRRuntimeHelpers.defineAlias(context, self, currDynScope, newNameString, oldNameString, requiresDynResolution, definedInMethod, targetScopeType);
         return null;
     }
 

@@ -23,14 +23,16 @@ import org.jruby.ir.operands.ScopeModule;
 
 public class DefineInstanceMethodInstr extends Instr implements FixedArityInstr {
     private final IRMethod method;
-    private final IRScopeType hostScopeType;
+    private final boolean requiresDynResolution;
+    private final boolean definedInMethod;
     private final IRScopeType targetScopeType;
 
     // SSS FIXME: Implicit self arg -- make explicit to not get screwed by inlining!
-    public DefineInstanceMethodInstr(IRMethod method, IRScopeType hostScopeType, IRScopeType targetScopeType) {
+    public DefineInstanceMethodInstr(IRMethod method, boolean requiresDynResolution, boolean definedInMethod, IRScopeType targetScopeType) {
         super(Operation.DEF_INST_METH);
         this.method = method;
-        this.hostScopeType = hostScopeType;
+        this.requiresDynResolution = true;
+        this.definedInMethod = true;
         this.targetScopeType = targetScopeType;
     }
 
@@ -41,7 +43,7 @@ public class DefineInstanceMethodInstr extends Instr implements FixedArityInstr 
 
     @Override
     public String toString() {
-        return getOperation() + "(" + method.getName() + ", " + method.getFileName() + ", hostScopeType:" + hostScopeType + ", target:" + targetScopeType + ")";
+        return getOperation() + "(" + method.getName() + ", " + method.getFileName() + ", dynRes: " + requiresDynResolution + ", inMethod:" + definedInMethod + ", target:" + targetScopeType + ")";
     }
 
     @Override
@@ -56,14 +58,14 @@ public class DefineInstanceMethodInstr extends Instr implements FixedArityInstr 
 
     @Override
     public Instr cloneForInlining(InlinerInfo ii) {
-        return new DefineInstanceMethodInstr(method, hostScopeType, targetScopeType);
+        return new DefineInstanceMethodInstr(method, requiresDynResolution, definedInMethod, targetScopeType);
     }
 
     // SSS FIXME: Go through this and DefineClassMethodInstr.interpret, clean up, extract common code
     @Override
     public Object interpret(ThreadContext context, DynamicScope currDynScope, IRubyObject self, Object[] temp) {
         Ruby runtime = context.runtime;
-        RubyModule clazz = IRRuntimeHelpers.findInstanceMethodContainer(context, currDynScope, self, hostScopeType, targetScopeType);
+        RubyModule clazz = IRRuntimeHelpers.findInstanceMethodContainer(context, currDynScope, self, requiresDynResolution, definedInMethod, targetScopeType);
 
         //if (clazz != context.getRubyClass()) {
         //    System.out.println("*** DING DING DING! *** For " + this + "; clazz: " + clazz + "; ruby module: " + context.getRubyClass());

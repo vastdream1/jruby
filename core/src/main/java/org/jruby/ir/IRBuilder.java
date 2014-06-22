@@ -733,7 +733,8 @@ public class IRBuilder {
     public Operand buildAlias(final AliasNode alias, IRScope s) {
         Operand newName = build(alias.getNewName(), s);
         Operand oldName = build(alias.getOldName(), s);
-        addInstr(s, new AliasInstr(newName, oldName, getHostScopeType(s), getStaticMethodContainerType(s)));
+        Object[] scopeResolutionInfo = getMethodContainerResolutionInfo(s);
+        addInstr(s, new AliasInstr(newName, oldName, (boolean)scopeResolutionInfo[0], (boolean)scopeResolutionInfo[1], (IRScopeType)scopeResolutionInfo[2]));
 
         return manager.getNil();
     }
@@ -1660,35 +1661,30 @@ public class IRBuilder {
         return method;
     }
 
-    private IRScopeType getStaticMethodContainerType(IRScope s) {
-        // Walk lexical scope stack till
-        // * you hit a IRClosure (blocks static resolution)
-        // * you hit a module-eval (blocks static resolution)
-        // * you hit a scope that can be scope targets (IRScriptBody, IRModuleBody).
+    private Object[] getMethodContainerResolutionInfo(IRScope s) {
+        IRScopeType targetScopeType = null;
+        boolean requiresDynResolution = false;
+        boolean definedInMethod = false;
         while (!(s instanceof IRScriptBody) && !(s instanceof IRModuleBody)) {
             if (s.getScopeType() == IRScopeType.CLOSURE ||
                 (s instanceof IREvalScript && (((IREvalScript)s).isModuleEval())))
             {
-                break;
+                requiresDynResolution = true;
+                // Reset since we will continue unwrapping further up the lexical scope stack
+                definedInMethod = false;
+            } else if (s.getScopeType().isMethod()) {
+                definedInMethod = true;
             }
             s = s.getLexicalParent();
         }
 
-        return s.getScopeType();
-    }
-
-    private IRScopeType getHostScopeType(IRScope s) {
-        // Go past eval-scripts
-        while (s instanceof IREvalScript) {
-            s = s.getLexicalParent();
-        }
-
-        return s.getScopeType();
+        return new Object[] {requiresDynResolution, definedInMethod, s.getScopeType()};
     }
 
     public Operand buildDefn(MethodDefNode node, IRScope s) { // Instance method
         IRMethod method = defineNewMethod(node, s, true);
-        addInstr(s, new DefineInstanceMethodInstr(method, getHostScopeType(s), getStaticMethodContainerType(s)));
+        Object[] scopeResolutionInfo = getMethodContainerResolutionInfo(s);
+        addInstr(s, new DefineInstanceMethodInstr(method, (boolean)scopeResolutionInfo[0], (boolean)scopeResolutionInfo[1], (IRScopeType)scopeResolutionInfo[2]));
         return new Symbol(method.getName());
     }
 
@@ -3342,7 +3338,8 @@ public class IRBuilder {
 
     public Operand buildUndef(Node node, IRScope s) {
         Operand methName = build(((UndefNode) node).getName(), s);
-        return addResultInstr(s, new UndefMethodInstr(s.createTemporaryVariable(), methName, getHostScopeType(s), getStaticMethodContainerType(s)));
+        Object[] scopeResolutionInfo = getMethodContainerResolutionInfo(s);
+        return addResultInstr(s, new UndefMethodInstr(s.createTemporaryVariable(), methName, (boolean)scopeResolutionInfo[0], (boolean)scopeResolutionInfo[1], (IRScopeType)scopeResolutionInfo[2]));
     }
 
     private Operand buildConditionalLoop(IRScope s, Node conditionNode,

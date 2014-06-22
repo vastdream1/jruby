@@ -51,6 +51,7 @@ import org.jruby.ir.IRScopeType;
 import org.jruby.lexer.yacc.ISourcePosition;
 import org.jruby.parser.IRStaticScope;
 import org.jruby.parser.StaticScope;
+import org.jruby.parser.IRStaticScope;
 import org.jruby.runtime.backtrace.BacktraceElement;
 import org.jruby.runtime.backtrace.RubyStackTraceElement;
 import org.jruby.runtime.backtrace.TraceType;
@@ -604,11 +605,18 @@ public final class ThreadContext {
      **/
     public RubyModule findNearestMethodContainer(DynamicScope currDynScope, IRubyObject self) {
         DynamicScope[] stack = scopeStack;
-        IRScopeType hostType = currDynScope.getStaticScope().getScopeType();
+        boolean definedInMethod = currDynScope.getStaticScope().getScopeType().isMethod();
+        // System.out.println("--new-- def-method:" + definedInMethod);
         for (int i = scopeIndex; i >= 0; i--) {
-            DynamicScope ds   = stack[i];
-            StaticScope  s    = ds.getStaticScope();
+            DynamicScope ds  = stack[i];
+            StaticScope  s   = ds.getStaticScope();
             IRScopeType  scopeType = s.getScopeType();
+            // if (((IRStaticScope)s).getIRScope() != null) {
+            //     System.out.println("st: " + scopeType + "; in " + ((IRStaticScope)s).getIRScope().getName());
+            // } else {
+            //     System.out.println("st: " + scopeType);
+            // }
+
             if (ds.inModuleEval()) {
                 // Stack-walking stops here.
                 return (RubyModule)self;
@@ -626,6 +634,13 @@ public final class ThreadContext {
                     case METACLASS_BODY:
                         return (RubyModule)self;
 
+                    case INSTANCE_METHOD:
+                    case CLASS_METHOD:
+                        return self.getMetaClass();
+
+                    case SCRIPT_BODY:
+                        throw new RuntimeException("Should not get here!");
+
                     // SSS FIXME: Why doesn't stack-walking stop here?
                     //
                     // def_method in ~/jruby/lib/ruby/2.1/erb.rb fails
@@ -635,6 +650,10 @@ public final class ThreadContext {
                     // hit a binding which may not exist on the call stack at all.
                     // Basically, the conundrum is what to do if the binding came
                     // from a block/closure.
+                    case EVAL_SCRIPT:
+                    case CLOSURE:
+                    case FOR:
+                        continue;
                 }
             } else if (scopeType == null) {
                 // These are those extra eval-scopes that are added for instance/module evals.
@@ -643,25 +662,44 @@ public final class ThreadContext {
                 // These extra eval-scopes are handled specially
                 // in the interpreter as well (see getEvalContainerScope).
                 continue;
+            } else if (definedInMethod) {
+                // Stack-walking stops here.
+                // In a dynamic context, the metaclass always captures the new method
+                // independent of what we find on the stack below it.
+                return self.getMetaClass();
             } else {
-                if (hostType.isMethod()) {
-                    // Stack-walking stops here.
-                    // In a dynamic context, the metaclass always captures the new method
-                    // independent of what we find on the stack below it.
-                    return self.getMetaClass();
-                } else {
+                switch (scopeType) {
+                    // We got what we were looking for
+                    case MODULE_BODY:
+                    case CLASS_BODY:
+                    case METACLASS_BODY:
+                        return (RubyModule)self;
+
                     // Stack-walking continues if we run into closures
-                    switch (scopeType) {
-                        case MODULE_BODY:
-                        case CLASS_BODY:
-                        case METACLASS_BODY:
-                            return (RubyModule)self;
-                    }
+                    // or methods on the stack
+                    //
+                    // Ex: class C; lambda { def foo; end }.should == ..; end
+                    //
+                    // In this scenario, we walk past all the intervening methods
+                    // involved in executing 'should' till we hit the class there.
+                    case EVAL_SCRIPT:
+                    case CLOSURE:
+                    case FOR:
+                    case INSTANCE_METHOD:
+                    case CLASS_METHOD:
+                        continue;
+
+                    // This is a static-resolution scenario.
+                    // Return null to use static-resolution info.
+                    // SSS FIXME: Correct?
+                    case SCRIPT_BODY:
+                        return null;
                 }
             }
         }
 
-        throw new RuntimeException("Should never get here!");
+        return null;
+        // throw new RuntimeException("Should not get here!");
     }
 
     public String getFrameName() {

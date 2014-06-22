@@ -612,12 +612,12 @@ public class IRRuntimeHelpers {
         return RubyRegexp.nth_match(matchNumber, context.getBackRef());
     }
 
-    public static void defineAlias(ThreadContext context, IRubyObject self, DynamicScope currDynScope, String newNameString, String oldNameString, IRScopeType hostScopeType, IRScopeType targetScopeType) {
+    public static void defineAlias(ThreadContext context, IRubyObject self, DynamicScope currDynScope, String newNameString, String oldNameString, boolean requiresDynResolution, boolean definedInMethod, IRScopeType targetScopeType) {
         if (self == null || self instanceof RubyFixnum || self instanceof RubySymbol) {
             throw context.runtime.newTypeError("no class to make alias");
         }
 
-        RubyModule module = findInstanceMethodContainer(context, currDynScope, self, hostScopeType, targetScopeType);
+        RubyModule module = findInstanceMethodContainer(context, currDynScope, self, requiresDynResolution, definedInMethod, targetScopeType);
         module.defineAlias(newNameString, oldNameString);
         module.callMethod(context, "method_added", context.runtime.newSymbol(newNameString));
     }
@@ -647,31 +647,33 @@ public class IRRuntimeHelpers {
         return rubyClass;
     }
 
-    private static RubyModule getTargetClass(IRScopeType hostScopeType, IRScopeType targetScopeType, IRubyObject self) {
-        if (hostScopeType.isMethod()) {
-            return self.getMetaClass();
-        } else {
-            switch (targetScopeType) {
-                case MODULE_BODY:
-                case CLASS_BODY:
-                case METACLASS_BODY:
-                    return (RubyModule)self;
-            }
+    private static RubyModule getTargetClass(IRScopeType targetScopeType, IRubyObject self) {
+        switch (targetScopeType) {
+            case MODULE_BODY:
+            case CLASS_BODY:
+            case METACLASS_BODY:
+                return (RubyModule)self;
         }
 
         throw new RuntimeException("Should not get here for static resolution scenario!");
     }
 
-    public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self, IRScopeType hostScopeType, IRScopeType staticTargetScopeType) {
+    public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self, boolean requiresDynResolution, boolean definedInMethod, IRScopeType staticTargetScopeType) {
         // Quick bypass for the script-body 'self' scenario
         if (self == context.runtime.getTopSelf()) {
             return self.getType();
-        }
-
-        if (staticTargetScopeType == IRScopeType.CLOSURE || staticTargetScopeType == IRScopeType.EVAL_SCRIPT) {
-            return context.findNearestMethodContainer(currDynScope, self);
         } else {
-            return getTargetClass(hostScopeType, staticTargetScopeType, self);
+            RubyModule mod = null;
+            if (requiresDynResolution) {
+                mod = context.findNearestMethodContainer(currDynScope, self);
+                // If we unwrapped past closures and didn't hit a module/class/metaclass body,
+                // the method's container is statically determined.
+            }
+
+            if (mod == null) {
+                mod = definedInMethod ? self.getMetaClass() : getTargetClass(staticTargetScopeType, self);
+            }
+            return mod;
         }
     }
 }

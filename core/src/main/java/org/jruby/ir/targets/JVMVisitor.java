@@ -459,9 +459,10 @@ public class JVMVisitor extends IRVisitor {
         jvmLoadLocal(DYNAMIC_SCOPE);
         m.adapter.ldc(((StringLiteral)aliasInstr.getNewName()).string);
         m.adapter.ldc(((StringLiteral)aliasInstr.getOldName()).string);
-        m.adapter.ldc(((IRScopeType)aliasInstr.getHostScopeType())); // SSS FIXME: Is this correct???
+        m.adapter.ldc(aliasInstr.requiresDynResolution());
+        m.adapter.ldc(aliasInstr.isDefinedInMethod());
         m.adapter.ldc(((IRScopeType)aliasInstr.getTargetScopeType())); // SSS FIXME: Is this correct???
-        m.invokeIRHelper("defineAlias", sig(void.class, ThreadContext.class, IRubyObject.class, String.class, String.class, IRScopeType.class, IRScopeType.class));
+        m.invokeIRHelper("defineAlias", sig(void.class, ThreadContext.class, IRubyObject.class, String.class, String.class, boolean.class, boolean.class, IRScopeType.class));
     }
 
     @Override
