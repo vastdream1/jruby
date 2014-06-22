@@ -29,8 +29,8 @@ public class UndefMethodInstr extends Instr implements ResultInstr, FixedArityIn
 
         this.result = result;
         this.methodName = methodName;
-        this.requiresDynResolution = true;
-        this.definedInMethod = true;
+        this.requiresDynResolution = requiresDynResolution;
+        this.definedInMethod = definedInMethod;
         this.targetScopeType = targetScopeType;
     }
 

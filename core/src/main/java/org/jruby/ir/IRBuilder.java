@@ -1665,7 +1665,7 @@ public class IRBuilder {
         IRScopeType targetScopeType = null;
         boolean requiresDynResolution = false;
         boolean definedInMethod = false;
-        while (!(s instanceof IRScriptBody) && !(s instanceof IRModuleBody)) {
+        while (!s.getScopeType().isMethodContainer()) {
             if (s.getScopeType() == IRScopeType.CLOSURE ||
                 (s instanceof IREvalScript && (((IREvalScript)s).isModuleEval())))
             {

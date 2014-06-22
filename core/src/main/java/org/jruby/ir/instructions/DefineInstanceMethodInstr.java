@@ -31,8 +31,8 @@ public class DefineInstanceMethodInstr extends Instr implements FixedArityInstr 
     public DefineInstanceMethodInstr(IRMethod method, boolean requiresDynResolution, boolean definedInMethod, IRScopeType targetScopeType) {
         super(Operation.DEF_INST_METH);
         this.method = method;
-        this.requiresDynResolution = true;
-        this.definedInMethod = true;
+        this.requiresDynResolution = requiresDynResolution;
+        this.definedInMethod = definedInMethod;
         this.targetScopeType = targetScopeType;
     }
 

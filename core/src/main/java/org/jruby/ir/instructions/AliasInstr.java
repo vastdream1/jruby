@@ -27,8 +27,8 @@ public class AliasInstr extends Instr implements FixedArityInstr {
 
         this.newName = newName;
         this.oldName = oldName;
-        this.requiresDynResolution = true;
-        this.definedInMethod = true;
+        this.requiresDynResolution = requiresDynResolution;
+        this.definedInMethod = definedInMethod;
         this.targetScopeType = targetScopeType;
     }
 

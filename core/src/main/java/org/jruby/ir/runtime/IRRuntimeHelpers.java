@@ -647,12 +647,15 @@ public class IRRuntimeHelpers {
         return rubyClass;
     }
 
-    private static RubyModule getTargetClass(IRScopeType targetScopeType, IRubyObject self) {
+    private static RubyModule getTargetClass(boolean definedInMethod, IRScopeType targetScopeType, IRubyObject self) {
         switch (targetScopeType) {
+            case SCRIPT_BODY:
+                return self.getType();
+
             case MODULE_BODY:
             case CLASS_BODY:
             case METACLASS_BODY:
-                return (RubyModule)self;
+                return definedInMethod ? self.getMetaClass() : (RubyModule)self;
         }
 
         throw new RuntimeException("Should not get here for static resolution scenario!");
@@ -665,13 +668,13 @@ public class IRRuntimeHelpers {
         } else {
             RubyModule mod = null;
             if (requiresDynResolution) {
-                mod = context.findNearestMethodContainer(currDynScope, self);
+                mod = context.findNearestMethodContainer(currDynScope, self, definedInMethod);
                 // If we unwrapped past closures and didn't hit a module/class/metaclass body,
                 // the method's container is statically determined.
             }
 
             if (mod == null) {
-                mod = definedInMethod ? self.getMetaClass() : getTargetClass(staticTargetScopeType, self);
+                mod = getTargetClass(definedInMethod, staticTargetScopeType, self);
             }
             return mod;
         }

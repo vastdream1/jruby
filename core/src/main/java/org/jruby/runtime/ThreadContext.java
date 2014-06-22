@@ -48,6 +48,7 @@ import org.jruby.exceptions.JumpException.ReturnJump;
 import org.jruby.ext.fiber.ThreadFiber;
 import org.jruby.internal.runtime.methods.DynamicMethod;
 import org.jruby.ir.IRScopeType;
+import org.jruby.ir.runtime.IRRuntimeHelpers;
 import org.jruby.lexer.yacc.ISourcePosition;
 import org.jruby.parser.IRStaticScope;
 import org.jruby.parser.StaticScope;
@@ -603,64 +604,38 @@ public final class ThreadContext {
      * Walk the call-stack to determine the nearest available method container (module)
      * that should process method defines, alias, undefs.
      **/
-    public RubyModule findNearestMethodContainer(DynamicScope currDynScope, IRubyObject self) {
+    public RubyModule findNearestMethodContainer(DynamicScope currDynScope, IRubyObject self, boolean nestedInMethod) {
         DynamicScope[] stack = scopeStack;
         boolean definedInMethod = currDynScope.getStaticScope().getScopeType().isMethod();
-        // System.out.println("--new-- def-method:" + definedInMethod);
+        if (IRRuntimeHelpers.isDebug()) {
+            System.out.println("--new-- def-method:" + definedInMethod + "; nested: " + nestedInMethod);
+        }
         for (int i = scopeIndex; i >= 0; i--) {
             DynamicScope ds  = stack[i];
             StaticScope  s   = ds.getStaticScope();
             IRScopeType  scopeType = s.getScopeType();
-            // if (((IRStaticScope)s).getIRScope() != null) {
-            //     System.out.println("st: " + scopeType + "; in " + ((IRStaticScope)s).getIRScope().getName());
-            // } else {
-            //     System.out.println("st: " + scopeType);
-            // }
+            if (IRRuntimeHelpers.isDebug()) {
+                if (((IRStaticScope)s).getIRScope() != null) {
+                    System.out.println("st: " + scopeType + "; in " + ((IRStaticScope)s).getIRScope().getName());
+                } else {
+                    System.out.println("st: " + scopeType);
+                }
+            }
 
             if (ds.inModuleEval()) {
-                // Stack-walking stops here.
                 return (RubyModule)self;
             } else if (ds.inInstanceEval()) {
-                // Stack-walking stops here.
                 return self.getSingletonClass();
             } else if (ds.inBindingEval()) {
-                // If this is a binding eval, find the original scope
-                // that is wrapped by the eval-scope and use that binding-time
-                // scope's scope-type to determine the method container.
-                scopeType = ds.getNextCapturedScope().getStaticScope().getScopeType();
-                switch (scopeType) {
-                    case MODULE_BODY:
-                    case CLASS_BODY:
-                    case METACLASS_BODY:
-                        return (RubyModule)self;
-
-                    case INSTANCE_METHOD:
-                    case CLASS_METHOD:
-                        return self.getMetaClass();
-
-                    case SCRIPT_BODY:
-                        throw new RuntimeException("Should not get here!");
-
-                    // SSS FIXME: Why doesn't stack-walking stop here?
-                    //
-                    // def_method in ~/jruby/lib/ruby/2.1/erb.rb fails
-                    // if we forcibly stop stack-walking here.
-                    //
-                    // But, yet, it seems odd to walk the stack once we
-                    // hit a binding which may not exist on the call stack at all.
-                    // Basically, the conundrum is what to do if the binding came
-                    // from a block/closure.
-                    case EVAL_SCRIPT:
-                    case CLOSURE:
-                    case FOR:
-                        continue;
-                }
+                // Wait to see if we get to an instance/module eval next.
+                // If not, this is a static resolution scenario that depends
+                // on the lexical scoping from where the binding came from
+                continue;
             } else if (scopeType == null) {
                 // These are those extra eval-scopes that are added for instance/module evals.
-                // Just ignore them!
-                //
                 // These extra eval-scopes are handled specially
                 // in the interpreter as well (see getEvalContainerScope).
+                // Just ignore them!
                 continue;
             } else if (definedInMethod) {
                 // Stack-walking stops here.
@@ -669,12 +644,6 @@ public final class ThreadContext {
                 return self.getMetaClass();
             } else {
                 switch (scopeType) {
-                    // We got what we were looking for
-                    case MODULE_BODY:
-                    case CLASS_BODY:
-                    case METACLASS_BODY:
-                        return (RubyModule)self;
-
                     // Stack-walking continues if we run into closures
                     // or methods on the stack
                     //
@@ -685,21 +654,27 @@ public final class ThreadContext {
                     case EVAL_SCRIPT:
                     case CLOSURE:
                     case FOR:
+                        continue;
+
+                    // SSS FIXME: Is this correct? Will I need the actual
+                    // scope ids of all scopes I encounter ???
                     case INSTANCE_METHOD:
                     case CLASS_METHOD:
-                        continue;
+                        if (nestedInMethod) return null;
+                        else continue;
 
                     // This is a static-resolution scenario.
                     // Return null to use static-resolution info.
-                    // SSS FIXME: Correct?
                     case SCRIPT_BODY:
+                    case MODULE_BODY:
+                    case CLASS_BODY:
+                    case METACLASS_BODY:
                         return null;
                 }
             }
         }
 
-        return null;
-        // throw new RuntimeException("Should not get here!");
+        throw new RuntimeException("Should not get here!");
     }
 
     public String getFrameName() {
