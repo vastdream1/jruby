@@ -674,7 +674,11 @@ public class IRRuntimeHelpers {
             }
 
             if (mod == null) {
-                mod = getTargetClass(definedInMethod, staticTargetScopeType, self);
+                if (currDynScope.getStaticScope().getScopeType() == IRScopeType.EVAL_SCRIPT) {
+                    mod = currDynScope.getNextCapturedScope().getStaticScope().getModule();
+                } else {
+                    mod = getTargetClass(definedInMethod, staticTargetScopeType, self);
+                }
             }
             return mod;
         }
