@@ -649,9 +649,6 @@ public class IRRuntimeHelpers {
 
     private static RubyModule getTargetClass(boolean definedInMethod, IRScopeType targetScopeType, IRubyObject self) {
         switch (targetScopeType) {
-            case SCRIPT_BODY:
-                return self.getType();
-
             case MODULE_BODY:
             case CLASS_BODY:
             case METACLASS_BODY:
