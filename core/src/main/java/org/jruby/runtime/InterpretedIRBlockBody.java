@@ -29,16 +29,26 @@ public class InterpretedIRBlockBody extends IRBlockBody {
         Visibility oldVis = binding.getFrame().getVisibility();
         Frame prevFrame = context.preYieldNoScope(binding, klass);
         if (klass == null) self = prepareSelf(binding);
+        DynamicScope newScope = null;
         try {
             DynamicScope prevScope = binding.getDynamicScope();
             // SSS FIXME: Maybe, we should allocate a NoVarsScope/DummyScope for for-loop bodies because the static-scope here
             // probably points to the parent scope? To be verified and fixed if necessary. There is no harm as it is now. It
             // is just wasteful allocation since the scope is not used at all.
-            DynamicScope newScope  = DynamicScope.newDynamicScope(getStaticScope(), prevScope);
+            newScope  = DynamicScope.newDynamicScope(getStaticScope(), prevScope);
+            // Pass on eval state info to the dynamic scope and clear it on the block-body
+            if (this.evalState == 1) {
+                newScope.setInInstanceEval();
+            } else if (this.evalState == 2) {
+                newScope.setInModuleEval();
+            }
+            this.evalState = 0;
             context.pushScope(newScope);
             return Interpreter.INTERPRET_BLOCK(context, self, closure, args, binding.getMethod(), block, type);
         }
         finally {
+            // Just in case the scope is reused, clear the flag!
+            newScope.clearEvalFlag();
             binding.getFrame().setVisibility(oldVis);
             context.postYield(binding, prevFrame);
         }

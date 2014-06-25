@@ -15,12 +15,22 @@ public abstract class IRBlockBody extends ContextAwareBlockBody {
     protected String[] parameterList;
     protected final String fileName;
     protected final int lineNumber;
+    protected int evalState = 0;
 
     public IRBlockBody(StaticScope staticScope, String[] parameterList, String fileName, int lineNumber, Arity arity) {
         super(staticScope, arity, -1);
         this.parameterList = parameterList;
         this.fileName = fileName;
         this.lineNumber = lineNumber;
+        this.evalState = 0;
+    }
+
+    public void setInInstanceEval() {
+        this.evalState = 1;
+    }
+
+    public void setInModuleEval() {
+        this.evalState = 2;
     }
 
     @Override

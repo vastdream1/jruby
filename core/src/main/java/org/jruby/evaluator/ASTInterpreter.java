@@ -149,6 +149,8 @@ public class ASTInterpreter {
         } catch (StackOverflowError soe) {
             throw runtime.newSystemStackError("stack level too deep", soe);
         } finally {
+            // Evalscopes can be reused => clear flag
+            evalScope.clearEvalFlag();
             context.postEvalWithBinding(binding, lastFrame);
         }
     }

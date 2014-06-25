@@ -94,6 +94,14 @@ public final class Block {
         this.binding = null;
     }
 
+    public void setInInstanceEval() {
+        body.setInInstanceEval();
+    }
+
+    public void setInModuleEval() {
+        body.setInModuleEval();
+    }
+
     public IRubyObject call(ThreadContext context, IRubyObject[] args) {
         return body.call(context, args, binding, type);
     }

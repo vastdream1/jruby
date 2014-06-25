@@ -647,37 +647,41 @@ public class IRRuntimeHelpers {
         return rubyClass;
     }
 
-    private static RubyModule getTargetClass(boolean definedInMethod, IRScopeType targetScopeType, IRubyObject self) {
-        switch (targetScopeType) {
-            case MODULE_BODY:
-            case CLASS_BODY:
-            case METACLASS_BODY:
-                return definedInMethod ? self.getMetaClass() : (RubyModule)self;
+    public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self, boolean requiresDynResolution, boolean definedInMethod, IRScopeType staticTargetScopeType) {
+        IRScopeType hostScopeType = currDynScope.getStaticScope().getScopeType();
+        boolean inBindingEval = hostScopeType == IRScopeType.EVAL_SCRIPT;
+
+        if (!inBindingEval && self == context.runtime.getTopSelf()) {
+            // Top-level-scripts are special
+            // but, not if binding-evals are in force!
+            return self.getType();
         }
 
-        throw new RuntimeException("Should not get here for static resolution scenario!");
-    }
-
-    public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self, boolean requiresDynResolution, boolean definedInMethod, IRScopeType staticTargetScopeType) {
-        // Quick bypass for the script-body 'self' scenario
-        if (self == context.runtime.getTopSelf()) {
-            return self.getType();
-        } else {
-            RubyModule mod = null;
-            if (requiresDynResolution) {
-                mod = context.findNearestMethodContainer(currDynScope, self, definedInMethod);
-                // If we unwrapped past closures and didn't hit a module/class/metaclass body,
-                // the method's container is statically determined.
-            }
-
-            if (mod == null) {
-                if (currDynScope.getStaticScope().getScopeType() == IRScopeType.EVAL_SCRIPT) {
-                    mod = currDynScope.getNextCapturedScope().getStaticScope().getModule();
-                } else {
-                    mod = getTargetClass(definedInMethod, staticTargetScopeType, self);
+        DynamicScope ds = currDynScope;
+        while (ds != null) {
+            IRScopeType scopeType = ds.getStaticScope().getScopeType();
+            if (ds.inModuleEval()) {
+                return (RubyModule)self;
+            } else if (ds.inInstanceEval()) {
+                return self.getSingletonClass();
+            } else if (ds.inBindingEval()) {
+                ds = ds.getNextCapturedScope();
+            } else if (scopeType == null || scopeType.isClosureType()) {
+                ds = ds.getNextCapturedScope();
+            } else if (inBindingEval) {
+                // Binding evals are special!
+                return ds.getStaticScope().getModule();
+            } else if (scopeType.isMethod()) {
+                return self.getMetaClass();
+            } else {
+                switch (scopeType) {
+                    case MODULE_BODY:
+                    case CLASS_BODY:
+                    case METACLASS_BODY:
+                        return (RubyModule)self;
                 }
             }
-            return mod;
         }
+        throw new RuntimeException("Should not get here!");
     }
 }

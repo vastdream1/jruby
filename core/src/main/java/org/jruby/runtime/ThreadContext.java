@@ -606,9 +606,8 @@ public final class ThreadContext {
      **/
     public RubyModule findNearestMethodContainer(DynamicScope currDynScope, IRubyObject self, boolean nestedInMethod) {
         DynamicScope[] stack = scopeStack;
-        boolean definedInMethod = currDynScope.getStaticScope().getScopeType().isMethod();
         if (IRRuntimeHelpers.isDebug()) {
-            System.out.println("--new-- def-method:" + definedInMethod + "; nested: " + nestedInMethod);
+            System.out.println("--new-- def-method:" + "; nested: " + nestedInMethod);
         }
         for (int i = scopeIndex; i >= 0; i--) {
             DynamicScope ds  = stack[i];
@@ -637,11 +636,6 @@ public final class ThreadContext {
                 // in the interpreter as well (see getEvalContainerScope).
                 // Just ignore them!
                 continue;
-            } else if (definedInMethod) {
-                // Stack-walking stops here.
-                // In a dynamic context, the metaclass always captures the new method
-                // independent of what we find on the stack below it.
-                return self.getMetaClass();
             } else {
                 switch (scopeType) {
                     // Stack-walking continues if we run into closures
@@ -656,13 +650,6 @@ public final class ThreadContext {
                     case FOR:
                         continue;
 
-                    // SSS FIXME: Is this correct? Will I need the actual
-                    // scope ids of all scopes I encounter ???
-                    case INSTANCE_METHOD:
-                    case CLASS_METHOD:
-                        if (nestedInMethod) return null;
-                        else continue;
-
                     // This is a static-resolution scenario.
                     // Return null to use static-resolution info.
                     case SCRIPT_BODY:
@@ -670,6 +657,13 @@ public final class ThreadContext {
                     case CLASS_BODY:
                     case METACLASS_BODY:
                         return null;
+
+                    // SSS FIXME: Is this correct? Will I need the actual
+                    // scope ids of all scopes I encounter ???
+                    case INSTANCE_METHOD:
+                    case CLASS_METHOD:
+                        if (nestedInMethod) return null;
+                        else continue;
                 }
             }
         }

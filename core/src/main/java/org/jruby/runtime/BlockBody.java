@@ -61,6 +61,14 @@ public abstract class BlockBody {
         this.argumentType = argumentType;
     }
 
+    public void setInInstanceEval() {
+        // System.out.println("setInInstanceEval unimplemented in " + this.getClass().getName());
+    }
+
+    public void setInModuleEval() {
+        // System.out.println("setInModuleEval unimplemented in " + this.getClass().getName());
+    }
+
     public IRubyObject call(ThreadContext context, IRubyObject[] args, Binding binding, Block.Type type) {
         args = prepareArgumentsForCall(context, args, type);
 
