@@ -27,6 +27,7 @@
 
 package org.jruby.runtime;
 
+import org.jruby.EvalType;
 import org.jruby.Ruby;
 import org.jruby.runtime.scope.ManyVarsDynamicScope;
 import org.jruby.runtime.scope.NoVarsDynamicScope;
@@ -45,12 +46,7 @@ public abstract class DynamicScope {
     // Captured dynamic scopes
     protected final DynamicScope parent;
 
-    // Are we in a instance/module/binding eval context?
-    // 0 => neither
-    // 1 => instance-eval
-    // 2 => module-eval
-    // 3 => binding-eval
-    private int evalType;
+    private EvalType evalType;
 
     // A place to store that special hiding space that bindings need to implement things like:
     // eval("a = 1", binding); eval("p a").  All binding instances must get access to this
@@ -61,6 +57,7 @@ public abstract class DynamicScope {
     protected DynamicScope(StaticScope staticScope, DynamicScope parent) {
         this.staticScope = staticScope;
         this.parent = parent;
+        this.evalType = EvalType.NONE;
     }
 
     protected DynamicScope(StaticScope staticScope) {
@@ -389,32 +386,27 @@ public abstract class DynamicScope {
         return buf.toString();
     }
 
-    // HACK
     public boolean inInstanceEval() {
-        return evalType == 1;
+        return evalType == EvalType.INSTANCE_EVAL;
     }
 
     public boolean inModuleEval() {
-        return evalType == 2;
+        return evalType == EvalType.MODULE_EVAL;
     }
 
     public boolean inBindingEval() {
-        return evalType == 3;
+        return evalType == EvalType.BINDING_EVAL;
     }
 
-    public void setInInstanceEval() {
-        evalType = 1;
+    public void setEvalType(EvalType evalType) {
+        this.evalType = evalType;
     }
 
-    public void setInModuleEval() {
-        evalType = 2;
+    public EvalType getEvalType() {
+        return this.evalType;
     }
 
-    public void setInBindingEval() {
-        evalType = 3;
-    }
-
-    public void clearEvalFlag() {
-        evalType = 0;
+    public void clearEvalType() {
+        evalType = EvalType.NONE;
     }
 }

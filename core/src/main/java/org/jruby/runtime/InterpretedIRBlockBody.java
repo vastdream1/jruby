@@ -1,9 +1,10 @@
 package org.jruby.runtime;
 
-import org.jruby.Ruby;
-import org.jruby.RubyArray;
+import org.jruby.EvalType;
 import org.jruby.RubyModule;
-import org.jruby.common.IRubyWarnings.ID;
+import org.jruby.runtime.Block;
+import org.jruby.runtime.Binding;
+import org.jruby.runtime.ThreadContext;
 import org.jruby.ir.IRClosure;
 import org.jruby.ir.interpreter.Interpreter;
 import org.jruby.ir.runtime.IRRuntimeHelpers;
@@ -37,18 +38,15 @@ public class InterpretedIRBlockBody extends IRBlockBody {
             // is just wasteful allocation since the scope is not used at all.
             newScope  = DynamicScope.newDynamicScope(getStaticScope(), prevScope);
             // Pass on eval state info to the dynamic scope and clear it on the block-body
-            if (this.evalState == 1) {
-                newScope.setInInstanceEval();
-            } else if (this.evalState == 2) {
-                newScope.setInModuleEval();
-            }
-            this.evalState = 0;
+            newScope.setEvalType(this.evalType);
+            this.evalType = EvalType.NONE;
             context.pushScope(newScope);
             return Interpreter.INTERPRET_BLOCK(context, self, closure, args, binding.getMethod(), block, type);
         }
         finally {
-            // Just in case the scope is reused, clear the flag!
-            newScope.clearEvalFlag();
+            // IMPORTANT: Do not clear eval-type in case this is reused in bindings!
+            // Ex: eval("...", foo.instance_eval { binding })
+            // The dyn-scope used for binding needs to have its eval-type set to INSTANCE_EVAL
             binding.getFrame().setVisibility(oldVis);
             context.postYield(binding, prevFrame);
         }

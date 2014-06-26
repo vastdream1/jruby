@@ -41,6 +41,7 @@
 
 package org.jruby.runtime;
 
+import org.jruby.EvalType;
 import org.jruby.RubyArray;
 import org.jruby.RubyModule;
 import org.jruby.RubyProc;
@@ -94,12 +95,8 @@ public final class Block {
         this.binding = null;
     }
 
-    public void setInInstanceEval() {
-        body.setInInstanceEval();
-    }
-
-    public void setInModuleEval() {
-        body.setInModuleEval();
+    public void setEvalType(EvalType evalType) {
+        body.setEvalType(evalType);
     }
 
     public IRubyObject call(ThreadContext context, IRubyObject[] args) {

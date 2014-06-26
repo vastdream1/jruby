@@ -648,8 +648,9 @@ public class IRRuntimeHelpers {
     }
 
     public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self, boolean requiresDynResolution, boolean definedInMethod, IRScopeType staticTargetScopeType) {
-        IRScopeType hostScopeType = currDynScope.getStaticScope().getScopeType();
-        boolean inBindingEval = hostScopeType == IRScopeType.EVAL_SCRIPT;
+        boolean inBindingEval = currDynScope.inBindingEval();
+
+        // System.out.println("start: " + inBindingEval);
 
         if (!inBindingEval && self == context.runtime.getTopSelf()) {
             // Top-level-scripts are special
@@ -660,26 +661,31 @@ public class IRRuntimeHelpers {
         DynamicScope ds = currDynScope;
         while (ds != null) {
             IRScopeType scopeType = ds.getStaticScope().getScopeType();
-            if (ds.inModuleEval()) {
-                return (RubyModule)self;
-            } else if (ds.inInstanceEval()) {
-                return self.getSingletonClass();
-            } else if (ds.inBindingEval()) {
-                ds = ds.getNextCapturedScope();
-            } else if (scopeType == null || scopeType.isClosureType()) {
-                ds = ds.getNextCapturedScope();
-            } else if (inBindingEval) {
-                // Binding evals are special!
-                return ds.getStaticScope().getModule();
-            } else if (scopeType.isMethod()) {
-                return self.getMetaClass();
-            } else {
-                switch (scopeType) {
-                    case MODULE_BODY:
-                    case CLASS_BODY:
-                    case METACLASS_BODY:
-                        return (RubyModule)self;
-                }
+            // System.out.println("Scope: " + ((IRStaticScope)ds.getStaticScope()).getIRScope() + "; type " + scopeType + "; eval type: " + ds.getEvalType());
+            switch (ds.getEvalType()) {
+                case MODULE_EVAL  : return (RubyModule)self;
+                case INSTANCE_EVAL: return self.getSingletonClass();
+                case BINDING_EVAL : ds = ds.getNextCapturedScope(); break;
+                case NONE:
+                    if (scopeType == null || scopeType.isClosureType()) {
+                        ds = ds.getNextCapturedScope();
+                    } else if (inBindingEval) {
+                        // Binding evals are special!
+                        return ds.getStaticScope().getModule();
+                    } else if (scopeType.isMethod()) {
+                        return self.getMetaClass();
+                    } else {
+                        switch (scopeType) {
+                            case MODULE_BODY:
+                            case CLASS_BODY:
+                            case METACLASS_BODY:
+                                return (RubyModule)self;
+
+                            default:
+                                throw new RuntimeException("Should not get here!");
+                        }
+                    }
+                    break;
             }
         }
         throw new RuntimeException("Should not get here!");

@@ -1571,23 +1571,19 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
     
     @JRubyMethod(name = "instance_eval")
     public IRubyObject instance_eval19(ThreadContext context, Block block) {
-        block.setInInstanceEval();
-        return specificEval(context, getInstanceEvalClass(), block);
+        return specificEval(context, getInstanceEvalClass(), block, EvalType.INSTANCE_EVAL);
     }
     @JRubyMethod(name = "instance_eval")
     public IRubyObject instance_eval19(ThreadContext context, IRubyObject arg0, Block block) {
-        block.setInInstanceEval();
-        return specificEval(context, getInstanceEvalClass(), arg0, block);
+        return specificEval(context, getInstanceEvalClass(), arg0, block, EvalType.INSTANCE_EVAL);
     }
     @JRubyMethod(name = "instance_eval")
     public IRubyObject instance_eval19(ThreadContext context, IRubyObject arg0, IRubyObject arg1, Block block) {
-        block.setInInstanceEval();
-        return specificEval(context, getInstanceEvalClass(), arg0, arg1, block);
+        return specificEval(context, getInstanceEvalClass(), arg0, arg1, block, EvalType.INSTANCE_EVAL);
     }
     @JRubyMethod(name = "instance_eval")
     public IRubyObject instance_eval19(ThreadContext context, IRubyObject arg0, IRubyObject arg1, IRubyObject arg2, Block block) {
-        block.setInInstanceEval();
-        return specificEval(context, getInstanceEvalClass(), arg0, arg1, arg2, block);
+        return specificEval(context, getInstanceEvalClass(), arg0, arg1, arg2, block, EvalType.INSTANCE_EVAL);
     }
 
     @JRubyMethod(name = "instance_exec", optional = 3, rest = true)
@@ -1604,8 +1600,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
             klazz = getSingletonClass();
         }
 
-        block.setInInstanceEval();
-        return yieldUnder(context, klazz, args, block);
+        return yieldUnder(context, klazz, args, block, EvalType.INSTANCE_EVAL);
     }
 
     /**
@@ -1617,7 +1612,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
      * it possible to emulate both instance_eval and instance_exec
      * with this implementation.
      */
-    protected IRubyObject yieldUnder(final ThreadContext context, RubyModule under, IRubyObject[] args, Block block) {
+    protected IRubyObject yieldUnder(final ThreadContext context, RubyModule under, IRubyObject[] args, Block block, EvalType evalType) {
         context.preExecuteUnder(under, block);
 
         Visibility savedVisibility = block.getBinding().getVisibility();
@@ -1626,10 +1621,10 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
         try {
             if (args.length == 1) {
                 IRubyObject valueInYield = args[0];
-                return setupBlock(block).yieldNonArray(context, valueInYield, this, context.getRubyClass());
+                return setupBlock(block, evalType).yieldNonArray(context, valueInYield, this, context.getRubyClass());
             } else {
                 IRubyObject valueInYield = RubyArray.newArrayNoCopy(context.runtime, args);
-                return setupBlock(block).yieldArray(context, valueInYield, this, context.getRubyClass());
+                return setupBlock(block, evalType).yieldArray(context, valueInYield, this, context.getRubyClass());
             }
             //TODO: Should next and return also catch here?
         } catch (JumpException.BreakJump bj) {
@@ -1641,11 +1636,12 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
         }
     }
 
-    private Block setupBlock(Block block) {
+    private Block setupBlock(Block block, EvalType evalType) {
         // FIXME: This is an ugly hack to resolve JRUBY-1381; I'm not proud of it
         block = block.cloneBlockAndFrame();
         block.getBinding().setSelf(this);
         block.getBinding().getFrame().setSelf(this);
+        block.setEvalType(evalType);
 
         return block;
     }
@@ -1659,14 +1655,14 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
      * it possible to emulate both instance_eval and instance_exec
      * with this implementation.
      */
-    protected IRubyObject yieldUnder(final ThreadContext context, RubyModule under, Block block) {
+    protected IRubyObject yieldUnder(final ThreadContext context, RubyModule under, Block block, EvalType evalType) {
         context.preExecuteUnder(under, block);
 
         Visibility savedVisibility = block.getBinding().getVisibility();
         block.getBinding().setVisibility(PUBLIC);
 
         try {
-            return setupBlock(block).yieldNonArray(context, this, this, context.getRubyClass());
+            return setupBlock(block, evalType).yieldNonArray(context, this, this, context.getRubyClass());
             //TODO: Should next and return also catch here?
         } catch (JumpException.BreakJump bj) {
             return (IRubyObject) bj.getValue();
@@ -1688,9 +1684,9 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
      * arguments in the args-array is optional, but can contain the
      * filename and line of the string under evaluation.
      */
-    public IRubyObject specificEval(ThreadContext context, RubyModule mod, Block block) {
+    public IRubyObject specificEval(ThreadContext context, RubyModule mod, Block block, EvalType evalType) {
         if (block.isGiven()) {
-            return yieldUnder(context, mod, block);
+            return yieldUnder(context, mod, block, evalType);
         } else {
             throw context.runtime.newArgumentError("block not supplied");
         }
@@ -1706,7 +1702,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
      * arguments in the args-array is optional, but can contain the
      * filename and line of the string under evaluation.
      */
-    public IRubyObject specificEval(ThreadContext context, RubyModule mod, IRubyObject arg, Block block) {
+    public IRubyObject specificEval(ThreadContext context, RubyModule mod, IRubyObject arg, Block block, EvalType evalType) {
         if (block.isGiven()) {
             throw context.runtime.newArgumentError(1, 0);
         }
@@ -1722,7 +1718,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
         String file = "(eval)";
         int line = 0;
 
-        return evalUnder(context, mod, evalStr, file, line);
+        return evalUnder(context, mod, evalStr, file, line, evalType);
     }
 
     /** specific_eval
@@ -1735,7 +1731,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
      * arguments in the args-array is optional, but can contain the
      * filename and line of the string under evaluation.
      */
-    public IRubyObject specificEval(ThreadContext context, RubyModule mod, IRubyObject arg0, IRubyObject arg1, Block block) {
+    public IRubyObject specificEval(ThreadContext context, RubyModule mod, IRubyObject arg0, IRubyObject arg1, Block block, EvalType evalType) {
         if (block.isGiven()) {
             throw context.runtime.newArgumentError(2, 0);
         }
@@ -1751,7 +1747,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
         String file = arg1.convertToString().asJavaString();
         int line = 0;
 
-        return evalUnder(context, mod, evalStr, file, line);
+        return evalUnder(context, mod, evalStr, file, line, evalType);
     }
 
     /** specific_eval
@@ -1764,7 +1760,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
      * arguments in the args-array is optional, but can contain the
      * filename and line of the string under evaluation.
      */
-    public IRubyObject specificEval(ThreadContext context, RubyModule mod, IRubyObject arg0, IRubyObject arg1, IRubyObject arg2, Block block) {
+    public IRubyObject specificEval(ThreadContext context, RubyModule mod, IRubyObject arg0, IRubyObject arg1, IRubyObject arg2, Block block, EvalType evalType) {
         if (block.isGiven()) {
             throw context.runtime.newArgumentError(2, 0);
         }
@@ -1780,7 +1776,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
         String file = arg1.convertToString().asJavaString();
         int line = (int)(arg2.convertToInteger().getLongValue() - 1);
 
-        return evalUnder(context, mod, evalStr, file, line);
+        return evalUnder(context, mod, evalStr, file, line, evalType);
     }
 
     protected RubyModule getInstanceEvalClass() {
@@ -1796,12 +1792,12 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
      * Evaluates the string src with self set to the current object,
      * using the module under as the context.
      */
-    public IRubyObject evalUnder(final ThreadContext context, RubyModule under, RubyString src, String file, int line) {
+    public IRubyObject evalUnder(final ThreadContext context, RubyModule under, RubyString src, String file, int line, EvalType evalType) {
         Visibility savedVisibility = context.getCurrentVisibility();
         context.setCurrentVisibility(PUBLIC);
         context.preExecuteUnder(under, Block.NULL_BLOCK);
         try {
-            return Interpreter.evalSimple(context, this, src, file, line);
+            return Interpreter.evalSimple(context, this, src, file, line, evalType);
         } finally {
             context.postExecuteUnder();
             context.setCurrentVisibility(savedVisibility);
@@ -2477,16 +2473,16 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
      *     k.instance_eval { @secret }   #=> 99
      */
     public IRubyObject instance_eval(ThreadContext context, Block block) {
-        return specificEval(context, getInstanceEvalClass(), block);
+        return specificEval(context, getInstanceEvalClass(), block, EvalType.INSTANCE_EVAL);
     }
     public IRubyObject instance_eval(ThreadContext context, IRubyObject arg0, Block block) {
-        return specificEval(context, getInstanceEvalClass(), arg0, block);
+        return specificEval(context, getInstanceEvalClass(), arg0, block, EvalType.INSTANCE_EVAL);
     }
     public IRubyObject instance_eval(ThreadContext context, IRubyObject arg0, IRubyObject arg1, Block block) {
-        return specificEval(context, getInstanceEvalClass(), arg0, arg1, block);
+        return specificEval(context, getInstanceEvalClass(), arg0, arg1, block, EvalType.INSTANCE_EVAL);
     }
     public IRubyObject instance_eval(ThreadContext context, IRubyObject arg0, IRubyObject arg1, IRubyObject arg2, Block block) {
-        return specificEval(context, getInstanceEvalClass(), arg0, arg1, arg2, block);
+        return specificEval(context, getInstanceEvalClass(), arg0, arg1, arg2, block, EvalType.INSTANCE_EVAL);
     }
 
     /** rb_obj_instance_exec
@@ -2520,7 +2516,7 @@ public class RubyBasicObject implements Cloneable, IRubyObject, Serializable, Co
             klazz = getSingletonClass();
         }
 
-        return yieldUnder(context, klazz, args, block);
+        return yieldUnder(context, klazz, args, block, EvalType.INSTANCE_EVAL);
     }
 
     /** rb_obj_extend

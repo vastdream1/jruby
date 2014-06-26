@@ -1,5 +1,6 @@
 package org.jruby.ir;
 
+import org.jruby.EvalType;
 import org.jruby.Ruby;
 import org.jruby.ast.*;
 import org.jruby.ast.types.INameNode;
@@ -283,7 +284,7 @@ public class IRBuilder {
         int n = 0;
         while (s != null && s instanceof IRClosure) {
             // We have this oddity of an extra inserted scope for instance/class/module evals
-            if (s instanceof IREvalScript && ((IREvalScript)s).isModuleEval()) {
+            if (s instanceof IREvalScript && ((IREvalScript)s).isModuleOrInstanceEval()) {
                 n++;
             }
             n++;
@@ -1667,7 +1668,7 @@ public class IRBuilder {
         boolean definedInMethod = false;
         while (!s.getScopeType().isMethodContainer()) {
             if (s.getScopeType() == IRScopeType.CLOSURE ||
-                (s instanceof IREvalScript && (((IREvalScript)s).isModuleEval())))
+                (s instanceof IREvalScript && (((IREvalScript)s).isModuleOrInstanceEval())))
             {
                 requiresDynResolution = true;
                 // Reset since we will continue unwrapping further up the lexical scope stack
@@ -3237,9 +3238,9 @@ public class IRBuilder {
         return U_NIL;
     }
 
-    public IREvalScript buildEvalRoot(StaticScope staticScope, IRScope containingScope, String file, int lineNumber, RootNode rootNode, boolean isModuleEval) {
+    public IREvalScript buildEvalRoot(StaticScope staticScope, IRScope containingScope, String file, int lineNumber, RootNode rootNode, EvalType evalType) {
         // Top-level script!
-        IREvalScript script = new IREvalScript(manager, containingScope, file, lineNumber, staticScope, isModuleEval);
+        IREvalScript script = new IREvalScript(manager, containingScope, file, lineNumber, staticScope, evalType);
 
         // Debug info: record line number
         addInstr(script, new LineNumberInstr(script, lineNumber));

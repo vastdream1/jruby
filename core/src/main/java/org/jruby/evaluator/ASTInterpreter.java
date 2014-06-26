@@ -31,6 +31,7 @@
 
 package org.jruby.evaluator;
 
+import org.jruby.EvalType;
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
 import org.jruby.RubyLocalJumpError;
@@ -123,7 +124,7 @@ public class ASTInterpreter {
 
         // in 1.9, eval scopes are local to the binding
         evalScope = binding.getEvalScope(runtime);
-        evalScope.setInBindingEval();
+        evalScope.setEvalType(EvalType.BINDING_EVAL);
 
         // FIXME:  This determine module is in a strange location and should somehow be in block
         evalScope.getStaticScope().determineModule();
@@ -149,8 +150,6 @@ public class ASTInterpreter {
         } catch (StackOverflowError soe) {
             throw runtime.newSystemStackError("stack level too deep", soe);
         } finally {
-            // Evalscopes can be reused => clear flag
-            evalScope.clearEvalFlag();
             context.postEvalWithBinding(binding, lastFrame);
         }
     }

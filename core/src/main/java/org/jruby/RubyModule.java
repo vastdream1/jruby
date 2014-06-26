@@ -2265,35 +2265,29 @@ public class RubyModule extends RubyObject {
 
     @JRubyMethod(name = {"module_eval", "class_eval"})
     public IRubyObject module_eval(ThreadContext context, Block block) {
-        block.setInModuleEval();
-        return specificEval(context, this, block);
+        return specificEval(context, this, block, EvalType.MODULE_EVAL);
     }
     @JRubyMethod(name = {"module_eval", "class_eval"})
     public IRubyObject module_eval(ThreadContext context, IRubyObject arg0, Block block) {
-        block.setInModuleEval();
-        return specificEval(context, this, arg0, block);
+        return specificEval(context, this, arg0, block, EvalType.MODULE_EVAL);
     }
     @JRubyMethod(name = {"module_eval", "class_eval"})
     public IRubyObject module_eval(ThreadContext context, IRubyObject arg0, IRubyObject arg1, Block block) {
-        block.setInModuleEval();
-        return specificEval(context, this, arg0, arg1, block);
+        return specificEval(context, this, arg0, arg1, block, EvalType.MODULE_EVAL);
     }
     @JRubyMethod(name = {"module_eval", "class_eval"})
     public IRubyObject module_eval(ThreadContext context, IRubyObject arg0, IRubyObject arg1, IRubyObject arg2, Block block) {
-        block.setInModuleEval();
-        return specificEval(context, this, arg0, arg1, arg2, block);
+        return specificEval(context, this, arg0, arg1, arg2, block, EvalType.MODULE_EVAL);
     }
     @Deprecated
     public IRubyObject module_eval(ThreadContext context, IRubyObject[] args, Block block) {
-        block.setInModuleEval();
-        return specificEval(context, this, args, block);
+        return specificEval(context, this, args, block, EvalType.MODULE_EVAL);
     }
 
     @JRubyMethod(name = {"module_exec", "class_exec"})
     public IRubyObject module_exec(ThreadContext context, Block block) {
         if (block.isGiven()) {
-            block.setInModuleEval();
-            return yieldUnder(context, this, IRubyObject.NULL_ARRAY, block);
+            return yieldUnder(context, this, IRubyObject.NULL_ARRAY, block, EvalType.MODULE_EVAL);
         } else {
             throw context.runtime.newLocalJumpErrorNoBlock();
         }
@@ -2302,8 +2296,7 @@ public class RubyModule extends RubyObject {
     @JRubyMethod(name = {"module_exec", "class_exec"}, rest = true)
     public IRubyObject module_exec(ThreadContext context, IRubyObject[] args, Block block) {
         if (block.isGiven()) {
-            block.setInModuleEval();
-            return yieldUnder(context, this, args, block);
+            return yieldUnder(context, this, args, block, EvalType.MODULE_EVAL);
         } else {
             throw context.runtime.newLocalJumpErrorNoBlock();
         }
