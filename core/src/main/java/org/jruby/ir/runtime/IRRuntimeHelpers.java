@@ -201,6 +201,7 @@ public class IRRuntimeHelpers {
                                   String filename, int line, String parameterDesc) {
         Ruby runtime = context.runtime;
 
+        // SSS FIXME: this has to be looked up at runtime now
         RubyModule containingClass = context.getRubyClass();
         Visibility currVisibility = context.getCurrentVisibility();
         Visibility newVisibility = Helpers.performNormalMethodChecksAndDetermineVisibility(runtime, containingClass, rubyName, currVisibility);
@@ -612,12 +613,12 @@ public class IRRuntimeHelpers {
         return RubyRegexp.nth_match(matchNumber, context.getBackRef());
     }
 
-    public static void defineAlias(ThreadContext context, IRubyObject self, DynamicScope currDynScope, String newNameString, String oldNameString, boolean requiresDynResolution, boolean definedInMethod, IRScopeType targetScopeType) {
+    public static void defineAlias(ThreadContext context, IRubyObject self, DynamicScope currDynScope, String newNameString, String oldNameString) {
         if (self == null || self instanceof RubyFixnum || self instanceof RubySymbol) {
             throw context.runtime.newTypeError("no class to make alias");
         }
 
-        RubyModule module = findInstanceMethodContainer(context, currDynScope, self, requiresDynResolution, definedInMethod, targetScopeType);
+        RubyModule module = findInstanceMethodContainer(context, currDynScope, self);
         module.defineAlias(newNameString, oldNameString);
         module.callMethod(context, "method_added", context.runtime.newSymbol(newNameString));
     }
@@ -647,7 +648,7 @@ public class IRRuntimeHelpers {
         return rubyClass;
     }
 
-    public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self, boolean requiresDynResolution, boolean definedInMethod, IRScopeType staticTargetScopeType) {
+    public static RubyModule findInstanceMethodContainer(ThreadContext context, DynamicScope currDynScope, IRubyObject self) {
         boolean inBindingEval = currDynScope.inBindingEval();
 
         // System.out.println("start: " + inBindingEval);

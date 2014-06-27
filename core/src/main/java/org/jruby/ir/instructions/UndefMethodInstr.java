@@ -19,19 +19,13 @@ import java.util.Map;
 public class UndefMethodInstr extends Instr implements ResultInstr, FixedArityInstr {
     private Variable result;
     private Operand methodName;
-    private final boolean requiresDynResolution;
-    private final boolean definedInMethod;
-    private final IRScopeType targetScopeType;
 
     // SSS FIXME: Implicit self arg -- make explicit to not get screwed by inlining!
-    public UndefMethodInstr(Variable result, Operand methodName, boolean requiresDynResolution, boolean definedInMethod, IRScopeType targetScopeType) {
+    public UndefMethodInstr(Variable result, Operand methodName) {
         super(Operation.UNDEF_METHOD);
 
         this.result = result;
         this.methodName = methodName;
-        this.requiresDynResolution = requiresDynResolution;
-        this.definedInMethod = definedInMethod;
-        this.targetScopeType = targetScopeType;
     }
 
     public Operand getMethodName() {
@@ -40,7 +34,7 @@ public class UndefMethodInstr extends Instr implements ResultInstr, FixedArityIn
 
     @Override
     public String toString() {
-        return super.toString() + "(" + methodName + ", dynRes: " + requiresDynResolution + ", inMethod:" + definedInMethod + ", target:" + targetScopeType + ")";
+        return super.toString() + "(" + methodName + ")";
     }
 
     @Override
@@ -69,12 +63,12 @@ public class UndefMethodInstr extends Instr implements ResultInstr, FixedArityIn
 
     @Override
     public Instr cloneForInlining(InlinerInfo ii) {
-        return new UndefMethodInstr((Variable)result.cloneForInlining(ii), methodName.cloneForInlining(ii), requiresDynResolution, definedInMethod, targetScopeType);
+        return new UndefMethodInstr((Variable)result.cloneForInlining(ii), methodName.cloneForInlining(ii));
     }
 
     @Override
     public Object interpret(ThreadContext context, DynamicScope currDynScope, IRubyObject self, Object[] temp) {
-        RubyModule module = IRRuntimeHelpers.findInstanceMethodContainer(context, currDynScope, self, requiresDynResolution, definedInMethod, targetScopeType);
+        RubyModule module = IRRuntimeHelpers.findInstanceMethodContainer(context, currDynScope, self);
         Object nameArg = methodName.retrieve(context, self, currDynScope, temp);
         String name = (nameArg instanceof String) ? (String) nameArg : nameArg.toString();
         module.undef(context, name);

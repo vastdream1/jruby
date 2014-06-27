@@ -16,7 +16,6 @@ import org.jruby.ir.transformations.inlining.CloneMode;
 import org.jruby.ir.transformations.inlining.InlinerInfo;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.Arity;
-import org.jruby.runtime.BlockBody;
 import org.jruby.runtime.CallType;
 import org.jruby.runtime.Helpers;
 import org.jruby.util.ByteList;
@@ -734,8 +733,7 @@ public class IRBuilder {
     public Operand buildAlias(final AliasNode alias, IRScope s) {
         Operand newName = build(alias.getNewName(), s);
         Operand oldName = build(alias.getOldName(), s);
-        Object[] scopeResolutionInfo = getMethodContainerResolutionInfo(s);
-        addInstr(s, new AliasInstr(newName, oldName, (boolean)scopeResolutionInfo[0], (boolean)scopeResolutionInfo[1], (IRScopeType)scopeResolutionInfo[2]));
+        addInstr(s, new AliasInstr(newName, oldName));
 
         return manager.getNil();
     }
@@ -1662,30 +1660,9 @@ public class IRBuilder {
         return method;
     }
 
-    private Object[] getMethodContainerResolutionInfo(IRScope s) {
-        IRScopeType targetScopeType = null;
-        boolean requiresDynResolution = false;
-        boolean definedInMethod = false;
-        while (!s.getScopeType().isMethodContainer()) {
-            if (s.getScopeType() == IRScopeType.CLOSURE ||
-                (s instanceof IREvalScript && (((IREvalScript)s).isModuleOrInstanceEval())))
-            {
-                requiresDynResolution = true;
-                // Reset since we will continue unwrapping further up the lexical scope stack
-                definedInMethod = false;
-            } else if (s.getScopeType().isMethod()) {
-                definedInMethod = true;
-            }
-            s = s.getLexicalParent();
-        }
-
-        return new Object[] {requiresDynResolution, definedInMethod, s.getScopeType()};
-    }
-
     public Operand buildDefn(MethodDefNode node, IRScope s) { // Instance method
         IRMethod method = defineNewMethod(node, s, true);
-        Object[] scopeResolutionInfo = getMethodContainerResolutionInfo(s);
-        addInstr(s, new DefineInstanceMethodInstr(method, (boolean)scopeResolutionInfo[0], (boolean)scopeResolutionInfo[1], (IRScopeType)scopeResolutionInfo[2]));
+        addInstr(s, new DefineInstanceMethodInstr(method));
         return new Symbol(method.getName());
     }
 
@@ -3339,8 +3316,7 @@ public class IRBuilder {
 
     public Operand buildUndef(Node node, IRScope s) {
         Operand methName = build(((UndefNode) node).getName(), s);
-        Object[] scopeResolutionInfo = getMethodContainerResolutionInfo(s);
-        return addResultInstr(s, new UndefMethodInstr(s.createTemporaryVariable(), methName, (boolean)scopeResolutionInfo[0], (boolean)scopeResolutionInfo[1], (IRScopeType)scopeResolutionInfo[2]));
+        return addResultInstr(s, new UndefMethodInstr(s.createTemporaryVariable(), methName));
     }
 
     private Operand buildConditionalLoop(IRScope s, Node conditionNode,
