@@ -2702,7 +2702,9 @@ public class RubyIO extends RubyObject implements IOEncodable {
             throw runtime.newArgumentError("negative length " + len + " given");
         }
 
-        str = EncodingUtils.setStrBuf(runtime, str, len);
+        // We don't use setStrBuf here because it tries to alloc the full size
+        if (str.isNil()) str = RubyString.newEmptyString(runtime);
+//        str = EncodingUtils.setStrBuf(runtime, str, len);
 
         fptr = getOpenFileChecked();
         fptr.checkByteReadable(context);
@@ -3933,9 +3935,11 @@ public class RubyIO extends RubyObject implements IOEncodable {
             io1 = (RubyIO) RubyFile.open(context, runtime.getFile(), new IRubyObject[] {arg1}, Block.NULL_BLOCK);
         } else if (arg1 instanceof RubyIO) {
             io1 = (RubyIO) arg1;
+            io1.flush(context);
         } else if (arg1.respondsTo("to_path")) {
             RubyString path = (RubyString) TypeConverter.convertToType19(arg1, runtime.getString(), "to_path");
             io1 = (RubyIO) RubyFile.open(context, runtime.getFile(), new IRubyObject[] {path}, Block.NULL_BLOCK);
+            io1.flush(context);
         } else if (arg1.respondsTo("read")) {
             if (length == null) {
                 read = arg1.callMethod(context, "read", runtime.getNil()).convertToString();
@@ -3950,9 +3954,11 @@ public class RubyIO extends RubyObject implements IOEncodable {
             io2 = (RubyIO) RubyFile.open(context, runtime.getFile(), new IRubyObject[] {arg2, runtime.newString("w")}, Block.NULL_BLOCK);
         } else if (arg2 instanceof RubyIO) {
             io2 = (RubyIO) arg2;
+            io1.flush(context);
         } else if (arg2.respondsTo("to_path")) {
             RubyString path = (RubyString) TypeConverter.convertToType19(arg2, runtime.getString(), "to_path");
             io2 = (RubyIO) RubyFile.open(context, runtime.getFile(), new IRubyObject[] {path, runtime.newString("w")}, Block.NULL_BLOCK);
+            io1.flush(context);
         } else if (arg2.respondsTo("write")) {
             if (read == null) {
                 if (length == null) {

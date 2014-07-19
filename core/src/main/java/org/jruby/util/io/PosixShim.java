@@ -7,6 +7,7 @@ import jnr.posix.FileStat;
 import jnr.posix.POSIX;
 import org.jruby.RubyThread;
 import org.jruby.runtime.Helpers;
+import org.jruby.util.ByteList;
 import org.jruby.util.JRubyFile;
 import org.jruby.util.ResourceException;
 
@@ -155,6 +156,75 @@ public class PosixShim {
             }
 
             return read;
+        } catch (IOException ioe) {
+            errno = Helpers.errnoFromException(ioe);
+            return -1;
+        }
+    }
+
+    private final ByteBuffer buffer = ByteBuffer.allocate(8196);
+
+    public synchronized int read(ChannelFD fd, ByteList buf, int offset, int length, boolean nonblock) {
+        clear();
+
+        try {
+            if (nonblock) {
+                // need to ensure channels that don't support nonblocking IO at least
+                // appear to be nonblocking
+                if (fd.chSelect != null) {
+                    // ok...we should have set it nonblocking already in setNonblock
+                } else {
+                    if (fd.chFile != null) {
+                        long position = fd.chFile.position();
+                        long size = fd.chFile.size();
+                        if (position != -1 && size != -1 && position < size) {
+                            // there should be bytes available...proceed
+                        } else {
+                            errno = Errno.EAGAIN;
+                            return -1;
+                        }
+                    } else {
+                        errno = Errno.EAGAIN;
+                        return -1;
+                    }
+                }
+            }
+
+            int total = 0;
+            while (length > total) {
+                buffer.clear();
+
+                if (length - total < buffer.remaining()) {
+                    buffer.limit(length - total);
+                }
+
+                int read = fd.chRead.read(buffer);
+
+                if (nonblock) {
+                    if (read == JAVA_EOF) {
+                        // NIO channels will always raise for errors, so -1 only means EOF.
+                        return total == 0 ? NATIVE_EOF : total;
+                    } else if (read == 0) {
+                        if (total == 0) {
+                            errno = Errno.EAGAIN;
+                            return -1;
+                        } else {
+                            return total;
+                        }
+                    }
+                } else if (read == JAVA_EOF) {
+                    // NIO channels will always raise for errors, so -1 only means EOF.
+                    return total == 0 ? NATIVE_EOF : total;
+                }
+
+                buffer.flip();
+
+                int replaceSize = Math.min(buf.getRealSize() - offset, read);
+                buf.replace(offset, replaceSize, buffer.array(), 0, read);
+                total += read;
+                offset += read;
+            }
+            return total;
         } catch (IOException ioe) {
             errno = Helpers.errnoFromException(ioe);
             return -1;

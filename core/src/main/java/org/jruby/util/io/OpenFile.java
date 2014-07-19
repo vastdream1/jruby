@@ -1204,6 +1204,19 @@ public class OpenFile implements Finalizable {
         return n;
     }
 
+    // read_buffered_data
+    public int readBufferedData(ByteList ptr, int offset, int len) {
+        int n = rbuf.len;
+
+        if (n <= 0) return n;
+        if (n > len) n = len;
+        int replaceSize = Math.min(ptr.getRealSize() - offset, n);
+        ptr.replace(offset, replaceSize, rbuf.ptr, rbuf.start + rbuf.off, n);
+        rbuf.off += n;
+        rbuf.len -= n;
+        return n;
+    }
+
     // io_fillbuf
     public int fillbuf(ThreadContext context) {
         int r;
@@ -1254,6 +1267,23 @@ public class OpenFile implements Finalizable {
         public Selector selector;
     }
 
+    public static class InternalReadStruct2 {
+        InternalReadStruct2(OpenFile fptr, ChannelFD fd, ByteList buf, int offset, int count) {
+            this.fptr = fptr;
+            this.fd = fd;
+            this.buf = buf;
+            this.offset = offset;
+            this.capa = count;
+        }
+
+        public OpenFile fptr;
+        public ChannelFD fd;
+        public ByteList buf;
+        public int offset;
+        public int capa;
+        public Selector selector;
+    }
+
     final static RubyThread.Task<InternalReadStruct, Integer> readTask = new RubyThread.Task<InternalReadStruct, Integer>() {
         @Override
         public Integer run(ThreadContext context, InternalReadStruct iis) throws InterruptedException {
@@ -1264,6 +1294,20 @@ public class OpenFile implements Finalizable {
 
         @Override
         public void wakeup(RubyThread thread, InternalReadStruct data) {
+            thread.getNativeThread().interrupt();
+        }
+    };
+
+    final static RubyThread.Task<InternalReadStruct2, Integer> readTask2 = new RubyThread.Task<InternalReadStruct2, Integer>() {
+        @Override
+        public Integer run(ThreadContext context, InternalReadStruct2 iis) throws InterruptedException {
+            ChannelFD fd = iis.fd;
+
+            return iis.fptr.posix.read(fd, iis.buf, iis.offset, iis.capa, iis.fptr.nonblock);
+        }
+
+        @Override
+        public void wakeup(RubyThread thread, InternalReadStruct2 data) {
             thread.getNativeThread().interrupt();
         }
     };
@@ -1292,6 +1336,27 @@ public class OpenFile implements Finalizable {
 
         try {
             return context.getThread().executeTask(context, iis, readTask);
+        } catch (InterruptedException ie) {
+            throw context.runtime.newConcurrencyError("IO operation interrupted");
+        }
+    }
+
+    /**
+     * MRI's rb_read_internal. This version receives a ByteList instead of a byte[] and appends to it, rather than
+     * expecting a fully-allocated target buffer right away. This avoids needing to use setStrBuf, which in JRuby
+     * allocates the full requested read size (in MRI, malloc virtualizes that memory so real memory use only reflects
+     * the used space.
+     */
+    public static int readInternal(ThreadContext context, OpenFile fptr, ChannelFD fd, ByteList buf, int offset, int count) {
+        InternalReadStruct2 iis = new InternalReadStruct2(fptr, fd, buf, offset, count);
+
+        // if we can do selection and this is not a non-blocking call, do selection
+        if (fd.chSelect != null && !iis.fptr.nonblock) {
+            context.getThread().select(fd.chSelect, fptr, SelectionKey.OP_READ);
+        }
+
+        try {
+            return context.getThread().executeTask(context, iis, readTask2);
         } catch (InterruptedException ie) {
             throw context.runtime.newConcurrencyError("IO operation interrupted");
         }
@@ -1542,7 +1607,9 @@ public class OpenFile implements Finalizable {
         cr = 0;
 
         if (siz == 0) siz = BUFSIZ;
-        str = EncodingUtils.setStrBuf(runtime, str, siz);
+        // We don't use setStrBuf here because it tries to alloc the full size
+        if (str.isNil()) str = RubyString.newEmptyString(runtime);
+//        str = EncodingUtils.setStrBuf(runtime, str, siz);
         for (;;) {
             READ_CHECK(context);
             n = fread(context, str, bytes, siz - bytes);
@@ -1604,6 +1671,44 @@ public class OpenFile implements Finalizable {
         return len - n;
     }
 
+    // io_bufread
+    private int ioBufread(ThreadContext context, ByteList strByteList, int ptr, int len) {
+        int offset = 0;
+        int n = len;
+        int c;
+
+        if (!READ_DATA_PENDING()) {
+            outer: while (n > 0) {
+                again: while (true) {
+                    c = readInternal(context, this, fd, strByteList, ptr + offset, n);
+                    if (c == 0) break outer;
+                    if (c < 0) {
+                        if (waitReadable(context, fd))
+                            continue again;
+                        return -1;
+                    }
+                    break;
+                }
+                offset += c;
+                if ((n -= c) <= 0) break outer;
+            }
+            return len - n;
+        }
+
+        while (n > 0) {
+            c = readBufferedData(strByteList, ptr+offset, n);
+            if (c > 0) {
+                offset += c;
+                if ((n -= c) <= 0) break;
+            }
+            checkClosed();
+            if (fillbuf(context) < 0) {
+                break;
+            }
+        }
+        return len - n;
+    }
+
     private static class BufreadArg {
         byte[] strPtrBytes;
         int strPtr;
@@ -1611,26 +1716,24 @@ public class OpenFile implements Finalizable {
         OpenFile fptr;
     };
 
-    static IRubyObject bufreadCall(ThreadContext context, BufreadArg p) {
-        p.len = p.fptr.ioBufread(context, p.strPtrBytes, p.strPtr, p.len);
-        return RubyBasicObject.UNDEF;
-    }
+//    static IRubyObject bufreadCall(ThreadContext context, BufreadArg p) {
+//        p.len = p.fptr.ioBufread(context, p.strPtrBytes, p.strPtr, p.len);
+//        return RubyBasicObject.UNDEF;
+//    }
 
     // io_fread
     public int fread(ThreadContext context, IRubyObject str, int offset, int size) {
         int len;
-        BufreadArg arg = new BufreadArg();
 
-        str = EncodingUtils.setStrBuf(context.runtime, str, offset + size);
+        if (str.isNil()) {
+            str = RubyString.newEmptyString(context.runtime);
+        }
+//        str = EncodingUtils.setStrBuf(context.runtime, str, offset + size);
         ByteList strByteList = ((RubyString)str).getByteList();
-        arg.strPtrBytes = strByteList.unsafeBytes();
-        arg.strPtr = strByteList.begin() + offset;
-        arg.len = size;
-        arg.fptr = this;
+
         // we don't support string locking
 //        rb_str_locktmp_ensure(str, bufread_call, (VALUE)&arg);
-        bufreadCall(context, arg);
-        len = arg.len;
+        len = ioBufread(context, strByteList, offset, size);
         // should be errno
         if (len < 0) throw context.runtime.newErrnoFromErrno(posix.errno, pathv);
         return len;
