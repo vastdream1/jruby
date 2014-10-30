@@ -51,7 +51,7 @@ public class TemporaryLocalVariable extends TemporaryVariable {
 
     @Override
     public Variable clone(SimpleCloneInfo ii) {
-        return new TemporaryLocalVariable(offset);
+        return new TemporaryLocalVariable(getName(), offset);
     }
 
     @Override
@@ -68,6 +68,9 @@ public class TemporaryLocalVariable extends TemporaryVariable {
         // both here and in DynamicScope var lookups.  To be done later.
         //
         // I dont like this at all.  This feels ugly!
+        if (producer != null) {
+            return Interpreter.getInstrResult(context, self, currScope, currDynScope, temp, (ResultInstr)producer);
+        }
         Object o = temp[offset];
         return o == null ? context.nil : o;
     }

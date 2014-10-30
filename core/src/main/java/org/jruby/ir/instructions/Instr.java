@@ -114,7 +114,7 @@ public abstract class Instr {
                  // If this scope (or any nested scope) has a ZSuperInstr, then the arguments of this
                  // scope could be used by any of those ZSuper instructions.  If so, we cannot delete
                  // the argument receive.
-                 // SSS FIXME: This check may be redundant. ZSuper now explicits lists
+                 // SSS FIXME: This check may be redundant. ZSuper now explicitly lists
                  // all arguments that it may use.
                  return false;
              } else {

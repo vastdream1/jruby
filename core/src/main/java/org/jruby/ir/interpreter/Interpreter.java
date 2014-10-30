@@ -211,8 +211,12 @@ public class Interpreter extends IRTranslator<IRubyObject, IRubyObject> {
         if (r instanceof Self) {
             return self;
         } else if (r instanceof TemporaryLocalVariable) {
-            res = temp[((TemporaryLocalVariable)r).offset];
-            return res == null ? context.nil : res;
+            TemporaryLocalVariable tlv = (TemporaryLocalVariable)r;
+            if (tlv.producer != null) {
+                return getInstrResult(context, self, currScope, currDynScope, temp, (ResultInstr)tlv.producer);
+            }
+            Object o = temp[tlv.offset];
+            return o == null ? context.nil : o;
         } else if (r instanceof LocalVariable) {
             LocalVariable lv = (LocalVariable)r;
             res = currDynScope.getValue(lv.getLocation(), lv.getScopeDepth());
@@ -558,6 +562,64 @@ public class Interpreter extends IRTranslator<IRubyObject, IRubyObject> {
             result = instr.interpret(context, currScope, currDynScope, self, temp);
             setResult(temp, currDynScope, instr, result);
             break;
+        }
+    }
+
+    public static Object getInstrResult(ThreadContext context, IRubyObject self, StaticScope currScope, DynamicScope currDynScope, Object[] temp, ResultInstr instr) {
+        if (IRRuntimeHelpers.isDebug()) {
+            LOG.info("  I: {}", instr);
+        }
+        Object result;
+        Operation op = ((Instr)instr).getOperation();
+        switch(op) {
+        case CALL_1F: {
+            OneFixnumArgNoBlockCallInstr call = (OneFixnumArgNoBlockCallInstr)instr;
+            IRubyObject r = (IRubyObject)retrieveOp(call.getReceiver(), context, self, currDynScope, currScope, temp);
+            return call.getCallSite().call(context, self, r, call.getFixnumArg());
+        }
+        case CALL_1O: {
+            OneOperandArgNoBlockCallInstr call = (OneOperandArgNoBlockCallInstr)instr;
+            IRubyObject r = (IRubyObject)retrieveOp(call.getReceiver(), context, self, currDynScope, currScope, temp);
+            IRubyObject o = (IRubyObject)call.getArg1().retrieve(context, self, currScope, currDynScope, temp);
+            return call.getCallSite().call(context, self, r, o);
+        }
+        case CALL_1OB: {
+            OneOperandArgBlockCallInstr call = (OneOperandArgBlockCallInstr)instr;
+            IRubyObject r = (IRubyObject)retrieveOp(call.getReceiver(), context, self, currDynScope, currScope, temp);
+            IRubyObject o = (IRubyObject)call.getArg1().retrieve(context, self, currScope, currDynScope, temp);
+            Block preparedBlock = call.prepareBlock(context, self, currScope, currDynScope, temp);
+            return call.getCallSite().call(context, self, r, o, preparedBlock);
+        }
+        case CALL_0O: {
+            ZeroOperandArgNoBlockCallInstr call = (ZeroOperandArgNoBlockCallInstr)instr;
+            IRubyObject r = (IRubyObject)retrieveOp(call.getReceiver(), context, self, currDynScope, currScope, temp);
+            return call.getCallSite().call(context, self, r);
+        }
+        case COPY: {
+            CopyInstr c = (CopyInstr)instr;
+            Operand  src = c.getSource();
+            return retrieveOp(src, context, self, currDynScope, currScope, temp);
+        }
+        case GET_FIELD: {
+            GetFieldInstr gfi = (GetFieldInstr)instr;
+            IRubyObject object = (IRubyObject)gfi.getSource().retrieve(context, self, currScope, currDynScope, temp);
+            VariableAccessor a = gfi.getAccessor(object);
+            result = a == null ? null : (IRubyObject)a.get(object);
+            if (result == null) {
+                if (context.runtime.isVerbose()) {
+                    context.runtime.getWarnings().warning(ID.IVAR_NOT_INITIALIZED, "instance variable " + gfi.getRef() + " not initialized");
+                }
+                result = context.nil;
+            }
+            return result;
+        }
+        case SEARCH_CONST: {
+            SearchConstInstr sci = (SearchConstInstr)instr;
+            ConstantCache cache = sci.getConstantCache();
+            return ConstantCache.isCached(cache) ? cache. value : sci.cache(context, currScope, currDynScope, self, temp);
+        }
+        default:
+            return ((Instr)instr).interpret(context, currScope, currDynScope, self, temp);
         }
     }
 

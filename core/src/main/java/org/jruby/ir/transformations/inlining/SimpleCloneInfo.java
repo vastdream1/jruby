@@ -3,6 +3,7 @@ package org.jruby.ir.transformations.inlining;
 import org.jruby.ir.IRScope;
 import org.jruby.ir.operands.Label;
 import org.jruby.ir.operands.LocalVariable;
+import org.jruby.ir.operands.TemporaryLocalVariable;
 import org.jruby.ir.operands.Variable;
 
 /**
@@ -22,6 +23,10 @@ public class SimpleCloneInfo extends CloneInfo {
     }
 
     public Variable getRenamedVariable(Variable variable) {
+        if (variable instanceof TemporaryLocalVariable) {
+            return variable.clone(this);
+        }
+
         Variable renamed = super.getRenamedVariable(variable);
 
         // FIXME: I don't understand how this case can possibly exist.  If it does a qualitative comment should be added here.

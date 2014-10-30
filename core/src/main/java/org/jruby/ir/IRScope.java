@@ -475,6 +475,7 @@ public abstract class IRScope implements ParseResult {
 
         // Pass 1. Set up IPCs for labels and instructions and build linear instr list
         List<Instr> newInstrs = new ArrayList<>();
+        Map<BasicBlock, List<Instr>> clonedInstrMap = new HashMap<>();
         int ipc = 0;
         for (BasicBlock b: linearizedBBList) {
             // All same-named labels must be same Java instance for this to work or we would need
@@ -485,19 +486,62 @@ public abstract class IRScope implements ParseResult {
 
             List<Instr> bbInstrs = b.getInstrs();
             int bbInstrsLength = bbInstrs.size();
+            List<Instr> clonedInstrs = new ArrayList<>();
+            clonedInstrMap.put(b, clonedInstrs);
+            Map<TemporaryLocalVariable, Instr> producers = new HashMap<>();
+            boolean stopChaining = false;
             for (int i = 0; i < bbInstrsLength; i++) {
                 Instr instr = bbInstrs.get(i);
-                if (!(instr instanceof ReceiveSelfInstr)) {
-                    Instr newInstr = instr.clone(cloneInfo);
 
-                    if (newInstr instanceof Specializeable) {
-                        newInstr = ((Specializeable) newInstr).specializeForInterpretation();
+                // Skip
+                if (instr instanceof ReceiveSelfInstr) continue;
+
+                // We shouldn't pop before all instrs. have executed.
+                if (instr instanceof PopBindingInstr || instr instanceof PopFrameInstr) stopChaining = true;
+
+                Instr newInstr = instr.clone(cloneInfo);
+                if (newInstr instanceof Specializeable) {
+                    newInstr = ((Specializeable) newInstr).specializeForInterpretation();
+                }
+
+                if (!stopChaining) {
+                    // process uses before defs so you don't introduce cycles in scenarios like this:
+                    // %v = .. %v ... 
+                    for (Variable v: newInstr.getUsedVariables()) {
+                        if (v instanceof TemporaryLocalVariable) {
+                            TemporaryLocalVariable tlv = (TemporaryLocalVariable)v;
+                            tlv.producer = producers.get(tlv);
+                            // If producer-consumer are within a basicblock boundary, use it!
+                            if (tlv.producer != null) {
+                                clonedInstrs.remove(tlv.producer);
+                                producers.remove(tlv);
+                            }
+                        }
                     }
 
-                    newInstr.setIPC(ipc);
-                    newInstrs.add(newInstr);
-                    ipc++;
+                    // Update producer info
+                    if (newInstr instanceof ResultInstr) {
+                        Variable oldRes = ((ResultInstr)instr).getResult();
+
+                        if (oldRes instanceof TemporaryLocalVariable && ((TemporaryLocalVariable)oldRes).producer != null) {
+                            TemporaryLocalVariable newRes = (TemporaryLocalVariable)((ResultInstr)newInstr).getResult();
+                            Operation op = newInstr.getOperation();
+                            // Limited set of instrs for which we support chaining
+                            if (op != Operation.RUNTIME_HELPER && (op.opClass == OpClass.CALL_OP || op.opClass == OpClass.OTHER_OP)) {
+                                producers.put(newRes, newInstr);
+                            }
+                        }
+                    }
                 }
+
+                clonedInstrs.add(newInstr);
+            }
+
+            // See which instrs have chained and should be skipped
+            for (Instr instr: clonedInstrs) {
+                newInstrs.add(instr);
+                instr.setIPC(ipc);
+                ipc++;
             }
         }
 
@@ -513,13 +557,9 @@ public abstract class IRScope implements ParseResult {
         for (BasicBlock b : linearizedBBList) {
             BasicBlock rescuerBB = cfg().getRescuerBBFor(b);
             int rescuerPC = rescuerBB == null ? -1 : rescuerBB.getLabel().getTargetPC();
-            for (Instr instr : b.getInstrs()) {
-                // FIXME: If we did not omit instrs from previous pass we could end up just doing a
-                // a size and for loop this n times instead of walking an examining each instr
-                if (!(instr instanceof ReceiveSelfInstr)) {
-                    linearizedInstrArray[ipc].setRPC(rescuerPC);
-                    ipc++;
-                }
+            for (Instr instr : clonedInstrMap.get(b)) {
+                linearizedInstrArray[ipc].setRPC(rescuerPC);
+                ipc++;
             }
         }
 
