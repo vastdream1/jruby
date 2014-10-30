@@ -4,6 +4,7 @@ import org.jruby.ir.IRClosure;
 import org.jruby.ir.IRScope;
 import org.jruby.ir.instructions.*;
 import org.jruby.ir.operands.Operand;
+import org.jruby.ir.operands.TemporaryLocalVariable;
 import org.jruby.ir.operands.TemporaryVariable;
 import org.jruby.ir.operands.Variable;
 
@@ -33,15 +34,33 @@ public class OptimizeTempVarsPass extends CompilerPass {
         return false;
     }
 
-    private static void allocVar(Operand oldVar, IRScope s, List<TemporaryVariable> freeVarsList, Map<Operand, Operand> newVarMap) {
+    private static TemporaryLocalVariable allocVar(Operand oldVar, IRScope s, List<TemporaryLocalVariable> freeVarsList, Map<Operand, Operand> newVarMap, boolean isResult, Instr producer) {
         // If we dont have a var mapping, get a new var -- try the free list first
         // and if none available, allocate a fresh one
-        if (newVarMap.get(oldVar) == null) {
-            newVarMap.put(oldVar, freeVarsList.isEmpty() ? s.createTemporaryVariable() : freeVarsList.remove(0));
+        TemporaryLocalVariable newVar = (TemporaryLocalVariable)newVarMap.get(oldVar);
+        if (newVar == null) {
+            if (freeVarsList.isEmpty()) {
+                newVar = s.createTemporaryVariable();
+            } else {
+                newVar = freeVarsList.remove(0);
+                if (isResult) {
+                    newVar = (TemporaryLocalVariable)newVar.clone(null);
+                }
+            }
+            newVarMap.put(oldVar, newVar);
+        } else if (isResult) {
+            newVar = (TemporaryLocalVariable)newVar.clone(null);
+            newVarMap.put(oldVar, newVar);
         }
+
+        if (producer != null) {
+            newVar.producer = producer;
+        }
+
+        return newVar;
     }
 
-    private static void freeVar(TemporaryVariable newVar, List<TemporaryVariable> freeVarsList) {
+    private static void freeVar(TemporaryLocalVariable newVar, List<TemporaryLocalVariable> freeVarsList) {
         // Put the new var onto the free list (but only if it is not already there).
         if (!freeVarsList.contains(newVar)) freeVarsList.add(0, newVar);
     }
@@ -129,10 +148,18 @@ public class OptimizeTempVarsPass extends CompilerPass {
                             i.markDead();
                             instrs.remove();
 
+                            // Clear uses/defs for old-var
+                            tmpVarUses.remove(v);
+                            tmpVarDefs.remove(v);
+
                             // Fix up use
                             Map<Operand, Operand> copyMap = new HashMap<Operand, Operand>();
                             copyMap.put(v, src);
                             soleUse.simplifyOperands(copyMap, true);
+                            if (src instanceof TemporaryLocalVariable) {
+                                List<Instr> srcUses = tmpVarUses.get(src);
+                                srcUses.add(soleUse);
+                            }
                         }
                     }
                 }
@@ -156,10 +183,18 @@ public class OptimizeTempVarsPass extends CompilerPass {
                         if ((uses.size() == 1) && (defs.size() == 1)) {
                             Instr soleDef = defs.get(0);
                             if (!soleDef.isDead()) {
+                                Variable ciRes = ci.getResult();
                                 // Fix up def
-                                ((ResultInstr)soleDef).updateResult(ci.getResult());
+                                ((ResultInstr)soleDef).updateResult(ciRes);
                                 ci.markDead();
                                 instrs.remove();
+
+                                // Update defs for ciRes if it is a tmp-var
+                                if (ciRes instanceof TemporaryVariable) {
+                                    List<Instr> ciDefs = tmpVarDefs.get(ciRes);
+                                    ciDefs.remove(ci);
+                                    ciDefs.add(soleDef);
+                                }
                             }
                         }
                     }
@@ -219,7 +254,7 @@ public class OptimizeTempVarsPass extends CompilerPass {
         // Replace all single use operands with constants they were assigned to.
         // Using operand -> operand signature because simplifyOperands works on operands
         Map<Operand, Operand>   newVarMap    = new HashMap<Operand, Operand>();
-        List<TemporaryVariable> freeVarsList = new ArrayList<TemporaryVariable>();
+        List<TemporaryLocalVariable> freeVarsList = new ArrayList<TemporaryLocalVariable>();
         iCount = -1;
         s.resetTemporaryVariables();
 
@@ -230,20 +265,24 @@ public class OptimizeTempVarsPass extends CompilerPass {
             Variable result = null;
             if (i instanceof ResultInstr) {
                 result = ((ResultInstr)i).getResult();
-                if (result instanceof TemporaryVariable) allocVar(result, s, freeVarsList, newVarMap);
+                if (result instanceof TemporaryVariable) {
+                    List<Instr> uses = tmpVarUses.get((TemporaryVariable)result);
+                    List<Instr> defs = tmpVarDefs.get((TemporaryVariable)result);
+                    allocVar(result, s, freeVarsList, newVarMap, true, (uses != null && (uses.size() == 1) && defs != null && (defs.size() == 1)) ? i : null);
+                }
             }
             for (Variable v: i.getUsedVariables()) {
-                if (v instanceof TemporaryVariable) allocVar(v, s, freeVarsList, newVarMap);
+                if (v instanceof TemporaryVariable) allocVar(v, s, freeVarsList, newVarMap, false, null);
             }
 
             // Free dead vars
             if ((result instanceof TemporaryVariable) && lastVarUseOrDef.get((TemporaryVariable)result) == iCount) {
-                freeVar((TemporaryVariable)newVarMap.get(result), freeVarsList);
+                freeVar((TemporaryLocalVariable)newVarMap.get(result), freeVarsList);
             }
             for (Variable v: i.getUsedVariables()) {
                 if (v instanceof TemporaryVariable) {
                     TemporaryVariable tv = (TemporaryVariable)v;
-                    if (lastVarUseOrDef.get(tv) == iCount) freeVar((TemporaryVariable)newVarMap.get(tv), freeVarsList);
+                    if (lastVarUseOrDef.get(tv) == iCount) freeVar((TemporaryLocalVariable)newVarMap.get(tv), freeVarsList);
                 }
             }
 

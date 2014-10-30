@@ -1,6 +1,9 @@
 package org.jruby.ir.operands;
 
 import org.jruby.ir.IRVisitor;
+import org.jruby.ir.instructions.Instr;
+import org.jruby.ir.instructions.ResultInstr;
+import org.jruby.ir.interpreter.Interpreter;
 import org.jruby.ir.transformations.inlining.SimpleCloneInfo;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.DynamicScope;
@@ -14,6 +17,7 @@ import org.jruby.runtime.builtin.IRubyObject;
 public class TemporaryLocalVariable extends TemporaryVariable {
     public static final String PREFIX = "%v_";
     public final int offset;
+    public Instr producer;
 
     public TemporaryLocalVariable(String name, int offset) {
         super(name);
@@ -66,6 +70,11 @@ public class TemporaryLocalVariable extends TemporaryVariable {
         // I dont like this at all.  This feels ugly!
         Object o = temp[offset];
         return o == null ? context.nil : o;
+    }
+
+    @Override
+    public String toString() {
+        return getName() + (producer == null ? "-unrecorded-" : "=["+ producer.getOperation() + "]" );
     }
 
     @Override
