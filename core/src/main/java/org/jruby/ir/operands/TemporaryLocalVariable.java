@@ -77,7 +77,7 @@ public class TemporaryLocalVariable extends TemporaryVariable {
 
     @Override
     public String toString() {
-        return getName() + (producer == null ? "-unrecorded-" : "=["+ producer.getOperation() + "]" );
+        return getName() + (producer == null ? "" : "=["+ producer.getOperation() + "]" );
     }
 
     @Override
