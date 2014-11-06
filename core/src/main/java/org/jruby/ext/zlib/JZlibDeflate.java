@@ -30,6 +30,7 @@ import com.jcraft.jzlib.JZlib;
 import java.io.IOException;
 import org.jruby.Ruby;
 import org.jruby.RubyClass;
+import org.jruby.RubyHash;
 import org.jruby.RubyNumeric;
 import org.jruby.RubyString;
 import org.jruby.anno.JRubyClass;
@@ -59,10 +60,11 @@ public class JZlibDeflate extends ZStream {
         }
     };
     private com.jcraft.jzlib.Deflater flater = null;
+    private RubyString input;
     private int flush = JZlib.Z_NO_FLUSH;
 
     @JRubyMethod(name = "deflate", required = 1, optional = 1, meta = true)
-    public static IRubyObject s_deflate(IRubyObject recv, IRubyObject[] args) {
+    public static IRubyObject s_deflate(IRubyObject recv, IRubyObject[] args, Block block) {
         Ruby runtime = recv.getRuntime();
         args = Arity.scanArgs(runtime, args, 1, 1);
         int level = JZlib.Z_DEFAULT_COMPRESSION;
@@ -76,7 +78,7 @@ public class JZlibDeflate extends ZStream {
         deflate.init(level, JZlib.DEF_WBITS, 8, JZlib.Z_DEFAULT_STRATEGY);
 
         try {
-            IRubyObject result = deflate.deflate(args[0].convertToString().getByteList(), JZlib.Z_FINISH);
+            IRubyObject result = deflate.deflate(args[0].convertToString().getByteList(), JZlib.Z_FINISH, block);
             deflate.close();
             return result;
         } catch (IOException ioe) {
@@ -220,7 +222,7 @@ public class JZlibDeflate extends ZStream {
     }
 
     @JRubyMethod(name = "deflate", required = 1, optional = 1)
-    public IRubyObject deflate(IRubyObject[] args) {
+    public IRubyObject deflate(IRubyObject[] args, Block block) {
         args = Arity.scanArgs(getRuntime(), args, 1, 1);
         if (internalFinished()) throw RubyZlib.newStreamError(getRuntime(), "stream error");
 
@@ -231,7 +233,9 @@ public class JZlibDeflate extends ZStream {
         if (!args[1].isNil()) flush = RubyNumeric.fix2int(args[1]);
         
         try {
-            return deflate(data, flush);
+            deflate(data, flush, block);
+
+            return zstreamDetachBuffer(data, flush);
         } catch (IOException ioe) {
             throw getRuntime().newIOErrorFromException(ioe);
         }
@@ -295,10 +299,95 @@ public class JZlibDeflate extends ZStream {
         return obj;
     }
 
-    private IRubyObject deflate(ByteList str, int flush) throws IOException {
-        if (null != str) append(str);
+    private void deflate(ThreadContext context, IRubyObject src, int flush, Block block) throws IOException {
+        if (src.isNil()) {
+            zstreamRun(context, ByteList.EMPTY_BYTELIST, 0, JZlib.Z_FINISH, block);
+            return;
+        }
+        src = src.convertToString();
+        if (flush != JZlib.Z_NO_FLUSH || ((RubyString)src).size() > 0) { /* prevent BUF_ERROR */
+            zstreamRun(context, ((RubyString)src).getByteList(), ((RubyString)src).size(), flush, block);
+        }
+    }
 
-        return flush(flush);
+    private void zstreamRun(ThreadContext context, ByteList src, long len, int flush, Block block) {
+        struct zstream_run_args args;
+        int err;
+
+        this.flush = flush;
+        this.interrupt = 0;
+        this.jumpState = 0;
+        this.stream_output = !ZSTREAM_IS_GZFILE(z) && rb_block_given_p();
+
+        if (input == null && len == 0) {
+            flater.setNextIn(src.getUnsafeBytes());
+            flater.setNextInIndex(0);
+            flater.setAvailIn(0);
+        }
+        else {
+            zstreamAppendInput(context, src, len);
+            flater.setNextIn(input.getByteList().getUnsafeBytes());
+            flater.setNextInIndex(input.getByteList().begin());
+            flater.setAvailIn(input.getByteList().length());
+        }
+
+        if (flater.getAvailOut() == 0) {
+            zstreamExpandBuffer();
+        }
+
+        loop: while (true) {
+            err = (int) (VALUE) rb_thread_call_without_gvl(zstream_run_func, (void*)&args,
+                    zstream_unblock_func, (void*)&args);
+
+            if (flush != JZlib.Z_FINISH && err == JZlib.Z_BUF_ERROR
+                    && z -> stream.avail_out > 0) {
+                z -> flags |= ZSTREAM_FLAG_IN_STREAM;
+            }
+
+            zstreamResetInput(z);
+
+            if (err != JZlib.Z_OK && err != JZlib.Z_STREAM_END) {
+                if (flater.getAvailIn() > 0) {
+                    zstreamAppendInput(flater.getNextIn(), flater.getNextInIndex(), flater.getAvailIn(), block);
+                }
+                if (err == JZlib.Z_NEED_DICT) {
+                    IRubyObject self = opaque;
+                    if (self != null) {
+                        IRubyObject dicts = getInstanceVariable("dictionaries");
+                        IRubyObject dict = ((RubyHash)dicts).op_aref(context, runtime.newFixnum(flater.getAdler()));
+                        if (!dict.isNil()) {
+                            rbInflateSetDictionary(self, dict);
+                            continue loop;
+                        }
+                    }
+                }
+                raiseZlibError(err, flater.getMessage());
+            }
+
+            if (flater.getAvailIn() > 0) {
+                zstreamAppendInput(flater.getNextIn(), flater.getNextInIndex(), flater.getAvailIn());
+            }
+
+            // ???
+//            if (jumpState)
+//                rb_jump_tag(args.jump_state);
+
+            break;
+        }
+    }
+
+    private void zstreamAppendInput(ByteList src, long len)
+    {
+        if (len <= 0) return;
+
+        if (NIL_P(z->input)) {
+            z->input = rb_str_buf_new(len);
+            rb_str_buf_cat(z->input, (const char*)src, len);
+            rb_obj_hide(z->input);
+        }
+        else {
+            rb_str_buf_cat(z->input, (const char*)src, len);
+        }
     }
 
     private IRubyObject finish() {
