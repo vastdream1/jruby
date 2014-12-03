@@ -1,6 +1,7 @@
 package org.jruby.ir.util;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
@@ -13,7 +14,7 @@ public class EdgeTypeIterator<T> implements Iterator<Edge<T>> {
     private Edge nextEdge = null;
     private boolean negate;
 
-    public EdgeTypeIterator(Set<Edge<T>> edges, Object type, boolean negate) {
+    public EdgeTypeIterator(Iterable<Edge<T>> edges, Object type, boolean negate) {
         this.internalIterator = edges.iterator();
         this.type = type;
         this.negate = negate;

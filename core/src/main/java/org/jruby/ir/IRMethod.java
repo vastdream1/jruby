@@ -1,5 +1,6 @@
 package org.jruby.ir;
 
+import org.jcodings.util.IntHash;
 import org.jruby.internal.runtime.methods.IRMethodArgs;
 import org.jruby.ir.instructions.Instr;
 import org.jruby.ir.instructions.ReceiveArgBase;
@@ -13,6 +14,7 @@ import org.jruby.ir.operands.Hash;
 import org.jruby.ir.operands.Splat;
 import org.jruby.util.KeyValuePair;
 import org.jruby.parser.StaticScope;
+import org.jruby.util.collections.IntHashMap;
 
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
@@ -35,7 +37,10 @@ public class IRMethod extends IRScope {
     private List<String[]> argDesc;
 
     // Signatures to the jitted versions of this method
-    private Map<Integer, MethodType> signatures;
+    private IntHashMap<MethodType> signatures = NULL_SIGNATURES;
+
+    // Max arity we support; this is only an artificial number to keep the signature store compact.
+    private static final IntHashMap<MethodType> NULL_SIGNATURES = new IntHashMap<>(0);
 
     // Method name in the jitted version of this method
     private String jittedName;
@@ -48,7 +53,6 @@ public class IRMethod extends IRScope {
         this.callArgs = new ArrayList<>();
         this.keywordArgs = new ArrayList<>();
         this.argDesc = new ArrayList<>();
-        this.signatures = new HashMap<>();
 
         if (!getManager().isDryRun() && staticScope != null) {
             staticScope.setIRScope(this);
@@ -115,15 +119,16 @@ public class IRMethod extends IRScope {
     }
 
     public void addNativeSignature(int arity, MethodType signature) {
+        ensureSignatures();
         signatures.put(arity, signature);
     }
 
-    public MethodType getNativeSignature(int arity) {
-        return signatures.get(arity);
+    public IntHashMap<MethodType> getNativeSignatures() {
+        return signatures;
     }
 
-    public Map<Integer, MethodType> getNativeSignatures() {
-        return Collections.unmodifiableMap(signatures);
+    private void ensureSignatures() {
+        if (signatures == NULL_SIGNATURES) signatures = new IntHashMap<>(5, 0.25f);
     }
 
     public String getJittedName() {

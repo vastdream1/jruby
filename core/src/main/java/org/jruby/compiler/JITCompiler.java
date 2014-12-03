@@ -48,6 +48,7 @@ import org.jruby.threading.DaemonThreadFactory;
 import org.jruby.util.JavaNameMangler;
 import org.jruby.util.OneShotClassLoader;
 import org.jruby.util.cli.Options;
+import org.jruby.util.collections.IntHashMap;
 import org.jruby.util.log.Logger;
 import org.jruby.util.log.LoggerFactory;
 import org.objectweb.asm.Opcodes;
@@ -58,6 +59,7 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -243,7 +245,10 @@ public class JITCompiler implements JITCompilerMBean {
                     log(method, className + "." + methodName, "done jitting");
                 }
 
-                Map<Integer, MethodType> signatures = ((IRMethod)method.getIRMethod()).getNativeSignatures();
+                // clear out data structures we won't need anymore
+                method.getIRMethod().clearAfterJIT();
+
+                IntHashMap<MethodType> signatures = ((IRMethod)method.getIRMethod()).getNativeSignatures();
                 String jittedName = ((IRMethod)method.getIRMethod()).getJittedName();
                 if (signatures.size() == 1) {
                     // only variable-arity
@@ -255,7 +260,7 @@ public class JITCompiler implements JITCompilerMBean {
                                     method.getImplementationClass()));
                 } else {
                     // also specific-arity
-                    for (Map.Entry<Integer, MethodType> entry : signatures.entrySet()) {
+                    for (IntHashMap.Entry<MethodType> entry : signatures.entrySet()) {
                         if (entry.getKey() == -1) continue; // variable arity handle pushed above
 
                         method.switchToJitted(

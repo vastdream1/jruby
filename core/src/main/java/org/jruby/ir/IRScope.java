@@ -1208,4 +1208,22 @@ public abstract class IRScope implements ParseResult {
         instructionsOffsetInfoPersistenceBuffer = offset;
         persistenceStore = file;
     }
+
+    /**
+     * Flush out data structures no longer neecessary after a successful JIT.
+     */
+    public void clearAfterJIT() {
+        // Clear everything out, since we're never coming back this way again.
+        dfProbs = null;
+        cfg = null;
+        linearizedBBList = null;
+//        localVars = null;
+        definedLocalVars = null;
+        evalScopeVars = null;
+        executedPasses = null;
+//        nextVarIndex = null;
+        instrList = null;
+        nestedClosures = null;
+        lexicalChildren = null;
+    }
 }

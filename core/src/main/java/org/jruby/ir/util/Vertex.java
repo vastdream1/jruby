@@ -8,8 +8,8 @@ import java.util.*;
 public class Vertex<T> implements Comparable<Vertex<T>> {
     private DirectedGraph graph;
     private T data;
-    private Set<Edge<T>> incoming = null;
-    private Set<Edge<T>> outgoing = null;
+    private Set<Edge<T>> incoming = Collections.EMPTY_SET;
+    private Set<Edge<T>> outgoing = Collections.EMPTY_SET;
     int id;
 
     public Vertex(DirectedGraph graph, T data, int id) {
@@ -24,8 +24,8 @@ public class Vertex<T> implements Comparable<Vertex<T>> {
 
     public void addEdgeTo(Vertex destination, Object type) {
         Edge edge = new Edge<T>(this, destination, type);
-        getOutgoingEdges().add(edge);
-        destination.getIncomingEdges().add(edge);
+        addOutgoingEdge(edge);
+        destination.addIncomingEdge(edge);
         graph.edges().add(edge);
     }
 
@@ -42,14 +42,14 @@ public class Vertex<T> implements Comparable<Vertex<T>> {
     public boolean removeEdgeTo(Vertex destination) {
         for (Edge edge: getOutgoingEdges()) {
             if (edge.getDestination() == destination) {
-                getOutgoingEdges().remove(edge);
-                edge.getDestination().getIncomingEdges().remove(edge);
+                removeOutgoingEdge(edge);
+                edge.getDestination().removeIncomingEdge(edge);
                 graph.edges().remove(edge);
                 if(outDegree() == 0) {
-                    outgoing = null;
+                    outgoing = Collections.EMPTY_SET;
                 }
                 if(destination.inDegree() == 0) {
-                    destination.incoming = null;
+                    destination.incoming = Collections.EMPTY_SET;
                 }
                 return true;
             }
@@ -60,18 +60,18 @@ public class Vertex<T> implements Comparable<Vertex<T>> {
 
     public void removeAllIncomingEdges() {
         for (Edge edge: getIncomingEdges()) {
-            edge.getSource().getOutgoingEdges().remove(edge);
+            edge.getSource().removeOutgoingEdge(edge);
             graph.edges().remove(edge);
         }
-        incoming = null;
+        incoming = Collections.EMPTY_SET;
     }
 
     public void removeAllOutgoingEdges() {
         for (Edge edge: getOutgoingEdges()) {
-            edge.getDestination().getIncomingEdges().remove(edge);
+            edge.getDestination().removeIncomingEdge(edge);
             graph.edges().remove(edge);
         }
-        outgoing = null;
+        outgoing = Collections.EMPTY_SET;
     }
 
     public void removeAllEdges() {
@@ -80,11 +80,11 @@ public class Vertex<T> implements Comparable<Vertex<T>> {
     }
 
     public int inDegree() {
-        return (incoming == null) ? 0 : incoming.size();
+        return incoming.size();
     }
 
     public int outDegree() {
-        return (outgoing == null) ? 0 : outgoing.size();
+        return outgoing.size();
     }
 
     public Iterable<Edge<T>> getIncomingEdgesOfType(Object type) {
@@ -172,13 +172,41 @@ public class Vertex<T> implements Comparable<Vertex<T>> {
     }
 
     public Set<Edge<T>> getIncomingEdges() {
-        if (incoming == null) incoming = new HashSet<Edge<T>>();
+        return incoming;
+    }
+
+    public void addIncomingEdge(Edge<T> edge) {
+        getIncomingEdgesForWrite().add(edge);
+    }
+
+    public void removeIncomingEdge(Edge<T> edge) {
+        if (incoming.size() == 0) return;
+        incoming.remove(edge);
+        if (incoming.size() == 0) incoming = Collections.EMPTY_SET;
+    }
+
+    private Set<Edge<T>> getIncomingEdgesForWrite() {
+        if (incoming == Collections.EMPTY_SET) incoming = new HashSet<Edge<T>>();
 
         return incoming;
     }
 
+    public void addOutgoingEdge(Edge<T> edge) {
+        getOutgoingEdgesForWrite().add(edge);
+    }
+
+    public void removeOutgoingEdge(Edge<T> edge) {
+        if (outgoing.size() == 0) return;
+        outgoing.remove(edge);
+        if (outgoing.size() == 0) outgoing = Collections.EMPTY_SET;
+    }
+
     public Set<Edge<T>> getOutgoingEdges() {
-        if (outgoing == null) outgoing = new HashSet<Edge<T>>();
+        return outgoing;
+    }
+
+    private Set<Edge<T>> getOutgoingEdgesForWrite() {
+        if (outgoing == Collections.EMPTY_SET) outgoing = new HashSet<Edge<T>>();
 
         return outgoing;
     }

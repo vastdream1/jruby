@@ -29,6 +29,7 @@ import org.jruby.util.JavaNameMangler;
 import org.jruby.util.KeyValuePair;
 import org.jruby.util.RegexpOptions;
 import org.jruby.util.cli.Options;
+import org.jruby.util.collections.IntHashMap;
 import org.jruby.util.log.Logger;
 import org.jruby.util.log.LoggerFactory;
 import org.objectweb.asm.Handle;
@@ -922,7 +923,7 @@ public class JVMVisitor extends IRVisitor {
 
         emitMethod(method);
 
-        Map<Integer, MethodType> signatures = method.getNativeSignatures();
+        IntHashMap<MethodType> signatures = method.getNativeSignatures();
 
         MethodType signature = signatures.get(-1);
 
@@ -951,7 +952,7 @@ public class JVMVisitor extends IRVisitor {
         m.loadContext();
 
         emitMethod(method);
-        Map<Integer, MethodType> signatures = method.getNativeSignatures();
+        IntHashMap<MethodType> signatures = method.getNativeSignatures();
 
         MethodType variable = signatures.get(-1); // always a variable arity handle
 
@@ -970,7 +971,7 @@ public class JVMVisitor extends IRVisitor {
         a.invokestatic(p(IRRuntimeHelpers.class), "defCompiledInstanceMethod", defSignature);
     }
 
-    public String pushHandlesForDef(String name, Map<Integer, MethodType> signatures, MethodType variable, String variableOnly, String variableAndSpecific) {
+    public String pushHandlesForDef(String name, IntHashMap<MethodType> signatures, MethodType variable, String variableOnly, String variableAndSpecific) {
         String defSignature;
 
         jvmMethod().pushHandle(new Handle(Opcodes.H_INVOKESTATIC, jvm.clsData().clsName, name, sig(variable.returnType(), variable.parameterArray())));
@@ -981,7 +982,7 @@ public class JVMVisitor extends IRVisitor {
             defSignature = variableAndSpecific;
 
             // FIXME: only supports one arity
-            for (Map.Entry<Integer, MethodType> entry : signatures.entrySet()) {
+            for (IntHashMap.Entry<MethodType> entry : signatures.entrySet()) {
                 if (entry.getKey() == -1) continue; // variable arity signature pushed above
                 jvmMethod().pushHandle(new Handle(Opcodes.H_INVOKESTATIC, jvm.clsData().clsName, name, sig(entry.getValue().returnType(), entry.getValue().parameterArray())));
                 jvmAdapter().pushInt(entry.getKey());

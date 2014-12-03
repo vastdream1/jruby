@@ -18,7 +18,7 @@ public class DataIterator<T> implements Iterator<T> {
     private boolean source;
     private boolean negate;
 
-    public DataIterator(Set<Edge<T>> edges, Object type, boolean source, boolean negate) {
+    public DataIterator(Iterable<Edge<T>> edges, Object type, boolean source, boolean negate) {
         this.internalIterator = edges.iterator();
         this.type = type;
         this.source = source;
