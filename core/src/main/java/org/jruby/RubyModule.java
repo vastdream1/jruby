@@ -1669,7 +1669,7 @@ public class RubyModule extends RubyObject {
 
     @Deprecated
     public IRubyObject executeUnder(ThreadContext context, org.jruby.runtime.callback.Callback method, IRubyObject[] args, Block block) {
-        context.preExecuteUnder(this, block);
+        context.preExecuteUnder(this, this, block);
         try {
             return method.execute(this, args, block);
         } finally {
