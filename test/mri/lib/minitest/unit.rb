@@ -1367,6 +1367,10 @@ module MiniTest
         if ENV["EXCLUDES"]
           begin
             exclude_src = File.read File.join(ENV["EXCLUDES"], klass.inspect.gsub("::", "/") + ".rb")
+          rescue Errno::ENOENT
+            # no excludes for this class
+          else
+            # excludes available, proceed
             excludes = {}
             klass.send :instance_variable_set, :@excludes, excludes
 
@@ -1377,8 +1381,6 @@ module MiniTest
             end
 
             klass.class_eval exclude_src
-          rescue Errno::ENOENT
-            # no excludes for this class
           end
         end
 
