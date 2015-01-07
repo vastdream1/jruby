@@ -62,6 +62,8 @@ import org.jruby.runtime.ExecutionContext;
 import org.jruby.runtime.builtin.IRubyObject;
 
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import org.jruby.anno.JRubyMethod;
@@ -153,6 +155,12 @@ public class RubyThread extends RubyObject implements ExecutionContext {
 
     /** The current task blocking a thread, to allow interrupting it in an appropriate way */
     private volatile BlockingTask currentBlockingTask;
+
+    /** A function to use to unblock this thread, if possible */
+    private Unblocker unblockFunc;
+
+    /** Argument to pass to the unblocker */
+    private Object unblockArg;
 
     /** The list of locks this thread currently holds, so they can be released on exit */
     private final List<Lock> heldLocks = new Vector<Lock>();
@@ -927,7 +935,6 @@ public class RubyThread extends RubyObject implements ExecutionContext {
      * Ruby threads like Timeout's thread.
      * 
      * @param args Same args as for Thread#raise
-     * @param block Same as for Thread#raise
      */
     public void internalRaise(IRubyObject[] args) {
         Ruby runtime = getRuntime();
@@ -1033,6 +1040,15 @@ public class RubyThread extends RubyObject implements ExecutionContext {
         public void wakeup();
     }
 
+    public interface Unblocker<Data> {
+        public void wakeup(RubyThread thread, Data self);
+    }
+
+    public interface Task<Data, Return> extends Unblocker<Data> {
+        public Return run(ThreadContext context, Data data) throws InterruptedException;
+        public void wakeup(RubyThread thread, Data data);
+    }
+
     public static final class SleepTask implements BlockingTask {
         private final Object object;
         private final long millis;
@@ -1057,6 +1073,30 @@ public class RubyThread extends RubyObject implements ExecutionContext {
         }
     }
 
+    private static final class SleepTask2 implements Task<Object[], Long> {
+        @Override
+        public Long run(ThreadContext context, Object[] data) throws InterruptedException {
+            long millis = (Long)data[1];
+            int nanos = (Integer)data[2];
+
+            long start = System.currentTimeMillis();
+            // TODO: nano handling?
+            if (millis == 0) {
+                ((Semaphore) data[0]).acquire();
+            } else {
+                ((Semaphore) data[0]).tryAcquire(millis, TimeUnit.MILLISECONDS);
+            }
+            return System.currentTimeMillis() - start;
+        }
+
+        @Override
+        public void wakeup(RubyThread thread, Object[] data) {
+            ((Semaphore)data[0]).release();
+        }
+    }
+
+    private static final Task<Object[], Long> SLEEP_TASK2 = new SleepTask2();
+
     public void executeBlockingTask(BlockingTask task) throws InterruptedException {
         enterSleep();
         try {
@@ -1067,6 +1107,25 @@ public class RubyThread extends RubyObject implements ExecutionContext {
             exitSleep();
             currentBlockingTask = null;
             pollThreadEvents();
+        }
+    }
+
+    public <Data, Return> Return executeTask(ThreadContext context, Data data, Task<Data, Return> task) throws InterruptedException {
+        try {
+            this.unblockFunc = task;
+            this.unblockArg = data;
+
+            // check for interrupt before going into blocking call
+            pollThreadEvents(context);
+
+            enterSleep();
+
+            return task.run(context, data);
+        } finally {
+            exitSleep();
+            this.unblockFunc = null;
+            this.unblockArg = null;
+            pollThreadEvents(context);
         }
     }
 
@@ -1351,10 +1410,18 @@ public class RubyThread extends RubyObject implements ExecutionContext {
         if (iowait != null) {
             iowait.cancel();
         }
-        
-        BlockingTask task = currentBlockingTask;
+
+        Unblocker task = this.unblockFunc;
         if (task != null) {
-            task.wakeup();
+            task.wakeup(this, unblockArg);
+        }
+
+        // deprecated
+        {
+            BlockingTask t = currentBlockingTask;
+            if (t != null) {
+                t.wakeup();
+            }
         }
     }
     private volatile BlockingIO.Condition blockingIO = null;
