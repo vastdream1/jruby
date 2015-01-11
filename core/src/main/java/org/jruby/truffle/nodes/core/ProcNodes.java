@@ -114,7 +114,7 @@ public abstract class ProcNodes {
         @Specialization
         public RubyNilClass initialize(RubyProc proc, RubyProc block) {
             proc.initialize(block.getSharedMethodInfo(), block.getCallTargetForProcs(),
-                    block.getCallTargetForProcs(), block.getCallTargetForMethods(), block.getDeclarationFrame(),
+                    block.getCallTargetForProcs(), block.getCallTargetForProcs(), block.getCallTargetForMethods(), block.getDeclarationFrame(),
                     block.getDeclaringModule(), block.getMethod(), block.getSelfCapturedInScope(),
                     block.getBlockCapturedInScope());
 

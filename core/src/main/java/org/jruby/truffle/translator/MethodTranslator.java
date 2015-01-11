@@ -190,6 +190,8 @@ class MethodTranslator extends BodyTranslator {
                 behaveAsBlockNode.replace(behaveAsBlockNode.getAsBlock());
             }
 
+            final CallTarget callTargetAsBlock = Truffle.getRuntime().createCallTarget(newRootNodeForBlocks);
+
             for (BehaveAsProcNode behaveAsProcNode : NodeUtil.findAllNodeInstances(newRootNodeForBlocks, BehaveAsProcNode.class)) {
                 behaveAsProcNode.replace(behaveAsProcNode.getNotAsProc());
             }
@@ -206,7 +208,17 @@ class MethodTranslator extends BodyTranslator {
 
             final CallTarget callTargetAsProc = Truffle.getRuntime().createCallTarget(newRootNodeForProcs);
 
-            final CallTarget callTargetAsBlock = Truffle.getRuntime().createCallTarget(newRootNodeForBlocks);
+            final RubyRootNode newRootNodeForLambdas = rootNode.cloneRubyRootNode();
+
+            for (BehaveAsBlockNode behaveAsBlockNode : NodeUtil.findAllNodeInstances(newRootNodeForLambdas, BehaveAsBlockNode.class)) {
+                behaveAsBlockNode.replace(behaveAsBlockNode.getAsBlock());
+            }
+
+            for (BehaveAsProcNode behaveAsProcNode : NodeUtil.findAllNodeInstances(newRootNodeForLambdas, BehaveAsProcNode.class)) {
+                behaveAsProcNode.replace(behaveAsProcNode.getAsProc());
+            }
+
+            final CallTarget callTargetAsLambda = Truffle.getRuntime().createCallTarget(newRootNodeForLambdas);
 
             final RubyRootNode newRootNodeForMethods = rootNode.cloneRubyRootNode();
 
@@ -229,7 +241,7 @@ class MethodTranslator extends BodyTranslator {
             final CallTarget callTargetAsMethod = Truffle.getRuntime().createCallTarget(newRootNodeWithCatchReturn);
 
             return new BlockDefinitionNode(context, sourceSection, environment.getSharedMethodInfo(),
-                    environment.needsDeclarationFrame(), callTargetAsBlock, callTargetAsProc, callTargetAsMethod);
+                    environment.needsDeclarationFrame(), callTargetAsBlock, callTargetAsProc, callTargetAsLambda, callTargetAsMethod);
         } else {
             return new MethodDefinitionNode(context, sourceSection, methodName, environment.getSharedMethodInfo(),
                     environment.needsDeclarationFrame(), Truffle.getRuntime().createCallTarget(rootNode));

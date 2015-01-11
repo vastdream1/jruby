@@ -34,18 +34,21 @@ public class BlockDefinitionNode extends RubyNode {
 
     private final CallTarget callTargetForBlocks;
     private final CallTarget callTargetForProcs;
+    private final CallTarget callTargetForLambdas;
     private final CallTarget callTargetForMethods;
 
     private final boolean requiresDeclarationFrame;
 
     public BlockDefinitionNode(RubyContext context, SourceSection sourceSection, SharedMethodInfo sharedMethodInfo,
                                boolean requiresDeclarationFrame, CallTarget callTargetForBlocks,
-                               CallTarget callTargetForProcs, CallTarget callTargetForMethods) {
+                               CallTarget callTargetForProcs, CallTarget callTargetForLambdas,
+                               CallTarget callTargetForMethods) {
         super(context, sourceSection);
         this.sharedMethodInfo = sharedMethodInfo;
 
         this.callTargetForBlocks = callTargetForBlocks;
         this.callTargetForProcs = callTargetForProcs;
+        this.callTargetForLambdas = callTargetForLambdas;
         this.callTargetForMethods = callTargetForMethods;
 
         this.requiresDeclarationFrame = requiresDeclarationFrame;
@@ -73,8 +76,8 @@ public class BlockDefinitionNode extends RubyNode {
         }
 
         return new RubyProc(getContext().getCoreLibrary().getProcClass(), RubyProc.Type.PROC, sharedMethodInfo,
-                callTargetForBlocks, callTargetForProcs, callTargetForMethods, declarationFrame, declaringModule,
-                RubyArguments.getMethod(frame.getArguments()), RubyArguments.getSelf(frame.getArguments()),
+                callTargetForBlocks, callTargetForProcs, callTargetForLambdas, callTargetForMethods, declarationFrame,
+                declaringModule, RubyArguments.getMethod(frame.getArguments()), RubyArguments.getSelf(frame.getArguments()),
                 RubyArguments.getBlock(frame.getArguments()));
     }
 
